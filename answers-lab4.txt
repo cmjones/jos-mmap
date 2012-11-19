@@ -1,0 +1,102 @@
+Questions:
+
+1. kern/mpentry.S is linked to run above KERNBASE, but the code is loaded below
+KERNBASE at MPENTRY_PADDR.  Thus, it's necessary to translate addresses to the
+load location, which is dynamically determined at run-time.  MPBOOTPHYS takes
+an address and translates it from an offset from mpentry_start (a variable set
+before the code is run) to an offset into MPENTRY_PADDR.  boot/boot.S doesn't
+need such a translation because, although the kernel is linked at KERNBASE and
+loaded at 0, 0 and KERNBASE are mapped to the same physical locations in the
+page table, so paging takes care of the mismatch.
+
+2. When a process enters kernel mode, it pushes the trap frame to the stack.
+It then pops the frame off the stack when it goes back to user mode.  If there
+were a shared kernel stack, the following would cause a problem:
+    * Process 1 enters kernel mode, pushes the trap frame, and yields
+    * Process 2 enters kernel mode, pushes the trap frame, and yields
+    * Process 1 leaves kernel mode and pops the trap frame
+Although Process 1 should have a pointer to the right trap frame, when it pops
+it will pop process 2's trap frame off the stack.
+
+3. My code does not dereference 'e' after the call to lcr3.  Instead, it stores
+'e' into 'curenv,' then references that.  In any case, 'e' is a pointer
+allocated on the current processor's kernel stack.  This kernel stack does not
+change memory locations upon the call to lcr3().  Thus, the variable can be
+dereferenced both before and after the virtual address change.  The actual
+memory address, as per a previous question, is in the kernel half of memory,
+which is the same for every virtual address context.
+
+4. The old environment's registers must be saved so that it can resume
+execution as if it were never interrupted, transparent to the user code. This
+occurs whenever the processor switches from user mode to kernel mode in the
+construction of the trap frame.
+
+
+CHALLENGE:
+
+I did the challenge problem to implment the power series calculator.  In order
+to do this, I also made a change to the ipc_recv call.  Now an environment can
+pass an envid_t and only receive messages from that environment.  It's useful
+for pipes, and only took a couple lines of code to do.  If that envid_t is 0,
+then the environment can recieve a message from anybody.
+
+The calculator resides in user/powerseries.c, and is made up of three layers:
+
+
+BOTTOM LAYER
+
+The bottom layer is a get, put, split, and start command for streams.  Streams
+are simply environments that will give a series of values to environments who
+ask.  Each get or put consists of two ipc calls, and the order is as follows:
+
+    stream calls stream_put, which causes it to wait for a STREAM_READ message
+    another environment calls stream_get, which sends the STREAM_READ message
+    the stream recieves this, and pushes the value to the env that asked
+    the other environment is only recieving messages from the stream, and gets
+        the value.
+
+To split a stream, the stream must currently be putting a value.  Instead of
+sending a STREAM_READ, the environment sends a STREAM_SPLIT.  The stream then
+forks into a parent and child, both of which continue returning values to
+people who ask.  The parent simply pushes the id of the child through ipc
+to the environment who asked for the split.  This is a way to divide a stream
+into two, each of which can be read at different rates.
+
+To start a stream, I implemented something I found online which allows closures
+in c.  Basically, every function that can close around a value takes a void *
+pointing to arbitrary data.  stream_start simply calls the function with the
+passed data in a child process, which effectively copies the context and closes
+around the data.  I found this paradigm online when I was programming a personal
+project.
+
+
+MIDDLE LAYER
+
+The middle layer is a series of streams like sumStream or multiplyStream which
+operate on 1 or more other streams.  The existance of these streams is why the
+closure idea works nicely for this calculator.  The specifics of implementation
+were drawn from the paper linked in the challenge problem.
+
+
+TOP LAYER
+
+The previous two layers make up the "calculator" portion of the challenge, and
+can be reused for other purposes.  The top layer is simply a stream for the sin
+function and for "x+x^3," which are needed to calculate sin(x+x^3).  Also here
+is the main method that sets up all the streams and reads off values.
+
+
+The gets and puts push float values onto streams, whereas ipc only operates on
+integers.  Thus, the floats needed to be converted bitwise into ints before
+sending, then converted back afterwards.  This makes it much easier to handle
+passing non-integers around when calculating the power series.  Unfortunately,
+floats can not currently be printed by JOS's cprintf function, which sucks.
+Since this lab is already very late, I thought I might as well turn in my code.
+It does compile correctly, and at least the bottom layer is tested (I originally
+used it to create my own version of the prime sieve).  The middle layer sorta
+depends on the math being right, and the top layer's correctness is a function
+of the correctness of the rest.  Anyway, when running the challenge problem,
+the program creates a bunch of environments, then I think overflows the stack
+due to all the recursion.  So... *shrug*
+
+Anyway, enjoy!  Don't let the massive quantities of comments bog you down!

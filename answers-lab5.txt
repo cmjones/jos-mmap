@@ -1,0 +1,33 @@
+Question 1:
+    Nothing else needs to be done to ensure the privilage setting is set
+properly when switching environments.  This is because the context switch
+includes pushing and restoring the flags register.  The flags register will be
+set to whatever it was while in kernel mode, but kernel mode can access io
+anyway, and the flags will be set to a new value upon switching to a new
+environment.
+
+Question 2:
+    The lab didn't take me too long.  I've worked on it Friday and then Sunday
+night.  The "Sharing library state" section took longer than it should have
+because of a bug in lib/fork.c that caused very strange errors.  The other
+exercises didn't take very long to do.
+
+Question 3:
+    I think I've got the basics of JOS file IO down.  I understand IPC pretty
+well and the idea of the file system running as a privileged environment. I'm
+still not 100% clear on the buffer cache, but I do get the idea of having the
+disk mapped to memory and reading blocks on-demand through page fault handling.
+Maybe a bit more hands-on time in the file system part of the code would help
+me out.  (This answer has been written before doing the challenge question
+involving adding write access to the file system)
+
+
+CHALLENGE:
+
+For the challenge problem, I did the write access implementation.  I basically
+used last years lab as a template, and added the all the required ipc requests
+as described in the challenge description.  All the file modes should be
+supported now save for the one that creates a directory.
+
+The implementation was a little tedious... There were just a lot of small
+pieces to do.  Code that is commented inline is usually code I've written.

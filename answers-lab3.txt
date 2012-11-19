@@ -1,0 +1,49 @@
+Questions:
+
+1. Having a single handler for all functions would mean that the trap frame
+couldn't be kept identical, or the handler would have to be more complicated to
+determine whether or not to push a 0 for the error code.
+
+2. To make the user/softint program behave correctly, the dpl for int 14 should
+be set to 0.  When the user tries to invoke it, it throws a protection fault in
+kernel mode, or trap 13.  If the IDT were set up to allow trap 14 to be invoked
+via int, then the trap that would be thrown would be 14 instead.  That could be
+bad, since page_faults can be used to lazily allocate pages in memory.
+
+3. The break point test generates a breakpoint from user mode.  If the
+corresponding IDT entry has a DPL of 0, then attempting to throw the breakpoint
+will instead throw a general protection fault from kernel mode.  This is
+because the table isn't set up to allow user processes to use 'int' to throw a
+breakpoint trap.  Setting the IDT entry's DPL to 3 allows the user to throw the
+trap, resulting in a breakpoint exception rather than a protection fault.
+
+4. Allowing certain interrupts to only be thrown by kernel mode adds some
+flexibility in trap handling.  For instance, if a page fault can only be thrown
+in kernel mode, you can use that trap to lazily allocate pages of memory.  If
+the user process can throw a page fault, then it could throw the fault for a
+page in memory that already exists, and it could be messy.  This is what the
+user/softint test program does.  Other problems could be caused if the user can
+cause interrupts that hardware can also cause.  It can't be clear where the
+interrupt comes from, so the user might trick the kernel into thinking a piece
+of hardware has completed a task when it hasn't.
+
+CHALLANGE:
+
+I implemented the kernel single-stepping and continuation.  The two monitor
+methods are extremely similar: both methods should only run after debug or
+breakpoint exceptions.  Breakpoint interrupts store the ip for the next
+instruction in eip already, so there doesn't need to be any difference in the
+way the two interrupts are treated.  In fact, continuing simply involves
+breaking out of the kernel monitor loop.  Debug instructions apparently are
+supposed to push the EFLAGS register to the stack, but in practice I found that
+I didn't need to touch the stack to make things work.  In fact, popping from
+the stack caused problems.
+
+Single-stepping is extremely simple thanks to the TRAP bit of EFLAGS.  If this
+bit is set, the processor automatically throws a DEBUG interrupt after each
+instruction.  The TRAP bit needs to be unset in the trap handler after a DEBUG
+interrupt, but other than that there aren't many lines of code to write.
+
+I also added a 'halt' command because I was tired of having to press 'ctrl-a x'
+to exit the kernel monitor.  The code for the command was stolen from the
+in-class assignment for the 'halt' system command.
