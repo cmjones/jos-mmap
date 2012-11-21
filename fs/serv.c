@@ -178,10 +178,13 @@ serve_open(envid_t envid, struct Fsreq_open *req,
 // Set the size of req->req_fileid to req->req_size bytes,
 //  truncating or extending the file as necessary
 int
-serve_set_size(envid_t envid, struct Fsreq_set_size *req)
+serve_set_size(envid_t envid, union Fsipc *ipc)
 {
-	struct OpenFile *o;
 	int r;
+	struct OpenFile *o;
+	struct Fsreq_set_size *req;
+
+	req = &ipc->set_size;
 
 	if(debug)
 		cprintf("serve_set_size %08x %08x %08x\n", envid, req->req_fileid, req->req_size);
@@ -243,10 +246,13 @@ serve_read(envid_t envid, union Fsipc *ipc)
 // accordingly.  Extend the file if necessary.  Returns the number of
 // bytes written, or < 0 on error.
 int
-serve_write(envid_t envid, struct Fsreq_write *req)
+serve_write(envid_t envid, union Fsipc *ipc)
 {
-	struct OpenFile *o;
 	int r;
+	struct OpenFile *o;
+	struct Fsreq_write *req;
+	
+	req = &ipc->write;
 
 	if(debug)
 		cprintf("serve_set_size %08x %08x %08x\n", envid, req->req_fileid, req->req_n);
@@ -297,10 +303,13 @@ serve_stat(envid_t envid, union Fsipc *ipc)
 
 // Flush all data and metadata of req->req_fileid to disk.
 int
-serve_flush(envid_t envid, struct Fsreq_flush *req)
+serve_flush(envid_t envid, union Fsipc *ipc)
 {
-	struct OpenFile *o;
 	int r;
+	struct OpenFile *o;
+	struct Fsreq_flush *req;
+	
+	req = &ipc->flush;
 
 	if(debug)
 		cprintf("serve_flush %08x %08x\n", envid, req->req_fileid);
@@ -313,10 +322,13 @@ serve_flush(envid_t envid, struct Fsreq_flush *req)
 
 // Remove the file req->req_path.
 int
-serve_remove(envid_t envid, struct Fsreq_remove *req)
+serve_remove(envid_t envid, union Fsipc *ipc)
 {
+	struct Fsreq_remove *req;
 	char path[MAXPATHLEN];
 	int r;
+
+	req = &ipc->remove;
 
 	if (debug)
 		cprintf("serve_remove %08x %s\n", envid, req->req_path);
