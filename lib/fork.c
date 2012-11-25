@@ -3,10 +3,6 @@
 #include <inc/string.h>
 #include <inc/lib.h>
 
-// PTE_COW marks copy-on-write page table entries.
-// It is one of the bits explicitly allocated to user processes (PTE_AVAIL).
-#define PTE_COW		0x800
-
 //
 // Custom page fault handler - if faulting page is copy-on-write,
 // map in our own private writable copy.

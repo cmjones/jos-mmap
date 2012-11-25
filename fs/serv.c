@@ -175,6 +175,61 @@ serve_open(envid_t envid, struct Fsreq_open *req,
 	return 0;
 }
 
+// For the file req->req_fileid, find the block of memory that
+//  holds req->req_offset and stores the address and permissions
+//  in *pg_store and *perm_store.
+int
+serve_mmap(envid_t envid, struct Fsreq_mmap *req,
+	   void **pg_store, int *perm_store)
+{
+	int r;
+	struct OpenFile *o;
+
+	if(debug)
+		cprintf("serve_mmap %08x %08x %08x %08x\n", envid, req->req_fileid, req->req_flags, req->req_offset);
+
+	// Find the relevant open file to map
+	if ((r = openfile_lookup(envid, req->req_fileid, &o)) < 0)
+		return r;
+
+	// If the file is opened in a read-only mode, then the
+	//  mmapped block must be opened with MAP_PRIVATE, since
+	//  no changes would be written to disk.  Otherwise,
+	//  files must be opened with write permissions to be able
+	//  to be mmapped.
+	//
+	// All mmapped files must have read access
+	if((o->o_mode&O_ACCMODE) == O_WRONLY ||
+	   ((o->o_mode&O_ACCMODE) == O_RDONLY && (req->req_flags&MAP_PRIVATE) == 0))
+		return -E_MODE_ERR;
+
+	// Ensure that req->offset is contained within the file, and
+	//  grab the page that contains it.
+	r = -E_INVAL;
+	if(req->req_offset >= 0 ||
+	   (r = file_get_block(o->o_file, req->req_offset/BLKSIZE, (char **)pg_store)) != 0)
+		return r;
+
+	// Mapped pages will always have read access.  If the requested
+	//  mode is MAP_PRIVATE, then permissions for both the new page
+	//  and the page in our memory should be PTE_COW
+	*perm_store = PTE_P|PTE_U;
+	if((req->req_flags&MAP_PRIVATE) == 0) {
+		*perm_store |= PTE_W;
+	} else {
+		*perm_store |= PTE_COW;
+
+		// Store our own mapping as PTE_COW
+		// TODO: make sure a page handler is registered for this
+		//  environment/this address.
+		if(sys_page_map(0, *pg_store, 0, *pg_store, *perm_store) != 0)
+			panic("file system unable to map own page as copy-on-write");
+	}
+
+	// All set, page should be mapped appropriately
+	return 0;
+}
+
 // Set the size of req->req_fileid to req->req_size bytes,
 //  truncating or extending the file as necessary
 int
@@ -251,7 +306,7 @@ serve_write(envid_t envid, union Fsipc *ipc)
 	int r;
 	struct OpenFile *o;
 	struct Fsreq_write *req;
-	
+
 	req = &ipc->write;
 
 	if(debug)
@@ -308,7 +363,7 @@ serve_flush(envid_t envid, union Fsipc *ipc)
 	int r;
 	struct OpenFile *o;
 	struct Fsreq_flush *req;
-	
+
 	req = &ipc->flush;
 
 	if(debug)
@@ -355,8 +410,10 @@ serve_sync(envid_t envid, union Fsipc *req)
 typedef int (*fshandler)(envid_t envid, union Fsipc *req);
 
 fshandler handlers[] = {
-	// Open is handled specially because it passes pages
+	// Open and mmap are handled specially because
+	// they pass pages
 	/* [FSREQ_OPEN] =	(fshandler)serve_open, */
+	/* [FSREQ_MMAP] =	(fshandler)serve_mmap, */
 	[FSREQ_READ] =		serve_read,
 	[FSREQ_WRITE] =		serve_write,
 	[FSREQ_STAT] =		serve_stat,
@@ -391,6 +448,8 @@ serve(void)
 		pg = NULL;
 		if (req == FSREQ_OPEN) {
 			r = serve_open(whom, (struct Fsreq_open*)fsreq, &pg, &perm);
+		} else if (req == FSREQ_MMAP) {
+			r = serve_mmap(whom, (struct Fsreq_mmap*)fsreq, &pg, &perm);
 		} else if (req < NHANDLERS && handlers[req]) {
 			r = handlers[req](whom, fsreq);
 		} else {

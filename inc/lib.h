@@ -122,6 +122,9 @@ int	pipeisclosed(int pipefd);
 // wait.c
 void	wait(envid_t env);
 
+/* PTE bit definitions */
+#define PTE_COW		0x800		/* Copy-on-write page table permissions */
+
 /* File open modes */
 #define	O_RDONLY	0x0000		/* open for reading only */
 #define	O_WRONLY	0x0001		/* open for writing only */
@@ -132,5 +135,8 @@ void	wait(envid_t env);
 #define	O_TRUNC		0x0200		/* truncate to zero length */
 #define	O_EXCL		0x0400		/* error if already exists */
 #define O_MKDIR		0x0800		/* create directory, not regular file */
+
+/* MMap flags */
+#define MAP_PRIVATE	0x0001		/* If set, changes are not written to disk. */
 
 #endif	// !JOS_INC_LIB_H

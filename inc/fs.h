@@ -70,7 +70,9 @@ enum {
 	FSREQ_STAT,
 	FSREQ_FLUSH,
 	FSREQ_REMOVE,
-	FSREQ_SYNC
+	FSREQ_SYNC,
+	// MMap maps a page of a file to the request page
+	FSREQ_MMAP
 };
 
 union Fsipc {
@@ -108,6 +110,11 @@ union Fsipc {
 	struct Fsreq_remove {
 		char req_path[MAXPATHLEN];
 	} remove;
+	struct Fsreq_mmap {
+		int req_fileid;
+		int req_flags;
+		uint32_t req_offset;
+	} mmap;
 
 	// Ensure Fsipc is one page
 	char _pad[PGSIZE];
