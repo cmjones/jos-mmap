@@ -139,4 +139,10 @@ void	wait(envid_t env);
 /* MMap flags */
 #define MAP_PRIVATE	0x0001		/* If set, changes are not written to disk. */
 
+/* INDEX2FD definitions */
+// Bottom of file descriptor area
+#define FDTABLE		0xD0000000
+// Return the 'struct Fd*' for file descriptor index i
+#define INDEX2FD(i)	((struct Fd*) (FDTABLE + (i)*PGSIZE))
+
 #endif	// !JOS_INC_LIB_H

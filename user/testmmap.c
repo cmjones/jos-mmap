@@ -15,6 +15,7 @@ mmap(const char *path, int req_flags, uint32_t req_offset)
 	extern union Fsipc fsipcbuf;
 	envid_t fsenv;
 	int fileid;
+	struct Fd *fd;
 
 	envid_t envid_store;
 	int perm_store;
@@ -24,7 +25,8 @@ mmap(const char *path, int req_flags, uint32_t req_offset)
 	// open the file to get file descriptor
 	if ((r_open = open(path, O_RDONLY)) < 0)
 		panic("mmap(): opening file failed, ERROR CODE: %d \n", r_open);
-	fileid = r_open;
+	fd = INDEX2FD(r_open);
+	fileid = fd->fd_file.id;
 
 	// set up the fsipc request
 	fsipcbuf.mmap.req_fileid = fileid;
