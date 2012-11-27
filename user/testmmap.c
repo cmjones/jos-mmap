@@ -20,7 +20,7 @@ mmap(const char *path, int req_flags, uint32_t req_offset)
 	int perm_store;
 
 	int r_open, r_ipc;
-	
+
 	// open the file to get file descriptor
 	if ((r_open = open(path, O_RDONLY)) < 0)
 		panic("mmap(): opening file failed, ERROR CODE: %d \n", r_open);
@@ -56,7 +56,7 @@ umain(int argc, char **argv)
 
 	cprintf("Running testmmap: mapping files to memory. \n");
 	cprintf("mmaping /lorem...\n");
-	mmap("/lorem", PTE_P | PTE_U, 0);
+	mmap("/lorem", MAP_PRIVATE, 0);
 
 	cprintf("--\n");
 }

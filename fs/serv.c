@@ -90,6 +90,7 @@ openfile_lookup(envid_t envid, uint32_t fileid, struct OpenFile **po)
 	struct OpenFile *o;
 
 	o = &opentab[fileid % MAXOPEN];
+cprintf("pageref: %d, o->o_fileid = %d, fileid = %d\n", pageref(o->o_fd), o->o_fileid, fileid);
 	if (pageref(o->o_fd) == 1 || o->o_fileid != fileid)
 		return -E_INVAL;
 	*po = o;
@@ -206,7 +207,7 @@ serve_mmap(envid_t envid, struct Fsreq_mmap *req,
 	// Ensure that req->offset is contained within the file, and
 	//  grab the page that contains it.
 	r = -E_INVAL;
-	if(req->req_offset >= 0 ||
+	if(req->req_offset < 0 ||
 	   (r = file_get_block(o->o_file, req->req_offset/BLKSIZE, (char **)pg_store)) != 0)
 		return r;
 
