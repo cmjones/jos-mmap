@@ -92,6 +92,10 @@ KERN_BINFILES +=	user/testpteshare \
 			user/testkbd \
 			user/testshell
 
+# Binary files for MMAP FINAL PROJECT
+KERN_BINFILES +=	user/testmmap
+
+
 KERN_OBJFILES := $(patsubst %.c, $(OBJDIR)/%.o, $(KERN_SRCFILES))
 KERN_OBJFILES := $(patsubst %.S, $(OBJDIR)/%.o, $(KERN_OBJFILES))
 KERN_OBJFILES := $(patsubst $(OBJDIR)/lib/%, $(OBJDIR)/kern/%, $(KERN_OBJFILES))
