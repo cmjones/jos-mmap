@@ -210,8 +210,13 @@ serve_mmap(envid_t envid, struct Fsreq_mmap *req,
 	//  grab the page that contains it.
 	r = -E_INVAL;
 	if(req->req_offset < 0 ||
+	   req->req_offset >= o->o_file->f_size ||
 	   (r = file_get_block(o->o_file, req->req_offset/BLKSIZE, (char **)pg_store)) != 0)
 		return r;
+
+	// If the page is not mapped yet, read the block into the buffer cache
+	if(!va_is_mapped(*pg_store))
+		read_block(*pg_store);
 
 	// Mapped pages will always have read access.  If the requested
 	//  mode is MAP_PRIVATE, then permissions for both the new page
