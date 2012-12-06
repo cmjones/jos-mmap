@@ -395,7 +395,7 @@ sys_page_block_alloc(envid_t envid, void *va, int pgnum, int perm)
 	}
 
 	// Success on all pages, return the start of the block
-	return retva;
+	return (int)retva; // need casting when used
 }
 
 // Try to send 'value' to the target env 'envid'.
