@@ -25,6 +25,7 @@ void*	diskaddr(uint32_t blockno);
 bool	va_is_mapped(void *va);
 bool	va_is_dirty(void *va);
 void	flush_block(void *addr);
+void	read_block(void *addr);
 void	bc_init(void);
 
 /* fs.c */

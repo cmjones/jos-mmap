@@ -51,19 +51,13 @@ flush_block(void *addr)
 	}
 }
 
-// Fault any disk block that is read in to memory by
-// loading it from disk.
-static void
-bc_pgfault(struct UTrapframe *utf)
+// Challenge:
+//  Reads the block containing addr into memory from disk, replacing any
+//  previous contents of that block in the buffer cache.
+void
+read_block(void *addr)
 {
-	void *addr = (void *) utf->utf_fault_va;
-	uint32_t blockno = ((uint32_t)addr - DISKMAP) / BLKSIZE;
-	int r;
-
-	// Check that the fault was within the block cache region
-	if (addr < (void*)DISKMAP || addr >= (void*)(DISKMAP + DISKSIZE))
-		panic("page fault in FS: eip %08x, va %08x, err %04x",
-		      utf->utf_eip, addr, utf->utf_err);
+	uint32_t blockno = ((uint32_t)addr-DISKMAP)/BLKSIZE;
 
 	// Sanity check the block number.
 	if (super && blockno >= super->s_nblocks)
@@ -83,6 +77,22 @@ bc_pgfault(struct UTrapframe *utf)
 	//  starting at the first sector of the target block.
 	if(ide_read(blockno*BLKSECTS, addr, BLKSECTS) != 0)
 		panic("error reading block %d in FS", blockno);
+}
+
+// Fault any disk block that is read in to memory by
+// loading it from disk.
+static void
+bc_pgfault(struct UTrapframe *utf)
+{
+	void *addr = (void *) utf->utf_fault_va;
+
+	// Check that the fault was within the block cache region
+	if (addr < (void*)DISKMAP || addr >= (void*)(DISKMAP + DISKSIZE))
+		panic("page fault in FS: eip %08x, va %08x, err %04x",
+		      utf->utf_eip, addr, utf->utf_err);
+
+	// Read the missing block into memory
+	read_block(addr);
 }
 
 
