@@ -10,6 +10,7 @@ enum {
 	SYS_page_alloc,
 	SYS_page_map,
 	SYS_page_unmap,
+	SYS_page_block_alloc,
 	SYS_exofork,
 	SYS_env_set_status,
 	SYS_env_set_trapframe,

@@ -434,6 +434,15 @@ pgdir_walk(pde_t *pgdir, const void *la, int create)
 }
 
 //
+// Simply get a free page
+//
+struct PageInfo *
+get_free_page()
+{
+	return page_free_list;
+}
+
+//
 // Map [va, va+size) of virtual address space to physical [pa, pa+size)
 // in the page table rooted at pgdir.  Size is a multiple of PGSIZE.
 // Use permission bits perm|PTE_P for the entries.
