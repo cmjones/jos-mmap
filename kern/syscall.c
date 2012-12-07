@@ -429,6 +429,83 @@ sys_page_unmap(envid_t envid, void *va)
 	return 0;
 }
 
+// Allocate a block of 'pgnum' consecutive, free pages of memory and map it 
+// at 'va' with permission 'perm' in the address space of 'envid'.
+// The page's contents are set to 0.
+//
+// The function starts scanning for the block of pages starting at 'va' (if provided),
+// If durng scanning, a page is already mapped somewhere in the region, 
+// the function skips to the next free page and restart scanning.
+//
+// perm -- PTE_U | PTE_P must be set, PTE_AVAIL | PTE_W may or may not be set,
+//         but no other bits may be set.  See PTE_SYSCALL in inc/mmu.h.
+//
+// Return va pointer to the first available page on success, < 0 on error.  Errors are:
+//	-E_BAD_ENV if environment envid doesn't currently exist,
+//		or the caller doesn't have permission to change envid.
+//	-E_INVAL if va >= UTOP, or va is not page-aligned.
+//	-E_INVAL if perm is inappropriate (see above).
+//	-E_NO_MEM if there's no memory to allocate the new block of pages.
+static int
+sys_page_block_alloc(envid_t envid, void *va, int pgnum, int perm)
+{
+	void *tmpva;
+	void *retva;
+	int counter;
+	struct Env *e;
+	struct PageInfo *pi;
+
+	// Sanity check the permissions bits: PTE_P is automatically
+	//  set, so that bit won't be necessary to provide unless
+	//  a test case fails. ;)
+	if((perm|PTE_U) == 0 || (perm&(!(PTE_U|PTE_W|PTE_AVAIL))) != 0) return -E_INVAL;
+
+	// Check that the environment id is correct
+	if(envid2env(envid, &e, 1) != 0) return -E_BAD_ENV;
+
+	// Sanity check the virtual address
+	if(va) {
+		if((uint32_t)va >= UTOP || (uint32_t)va%PGSIZE != 0) return -E_INVAL;
+		tmpva = ROUNDDOWN(va, PGSIZE);
+	} else { 
+		// If va is not provided, give an initial value
+		tmpva = page2kva(get_free_page()); // TODO: check correctness
+	}
+
+	// Scan the memory for free pages
+	counter = 0;
+	while (counter < pgnum) { 
+		// If 'tmpva' is out of bound, fail
+		if((uint32_t)tmpva >= UTOP) return -E_INVAL;
+
+		// Test free pages
+		if(pgdir_walk(e->env_pgdir, tmpva, 0) == NULL) {
+			counter++;
+		} else {
+			counter = 0;
+		}
+		tmpva += PGSIZE;
+	}
+
+	// If reached here, proper-sized block of free pages is found. 
+	// Now allocate.
+	tmpva -= pgnum * PGSIZE; // back to the start of the block
+	retva = tmpva;
+	for (counter = 0; counter < pgnum; counter++, tmpva += PGSIZE) {
+		if((pi = page_alloc(ALLOC_ZERO)) != NULL) {
+			if(page_insert(e->env_pgdir, pi, tmpva, perm) != 0) {
+				page_free(pi);
+				return -E_NO_MEM;
+			}
+		} else {
+			return -E_NO_MEM;
+		}
+	}
+
+	// Success on all pages, return the start of the block
+	return (int)retva; // need casting when used
+}
+
 // Try to send 'value' to the target env 'envid'.
 // If srcva < UTOP, then also send page currently mapped at 'srcva',
 // so that receiver gets a duplicate mapping of the same page.
@@ -615,6 +692,9 @@ syscall(uint32_t syscallno, uint32_t a1, uint32_t a2, uint32_t a3, uint32_t a4, 
 		break;
 	case SYS_page_unmap:
 		retval = sys_page_unmap(a1, (void *)a2);
+		break;
+	case SYS_page_block_alloc:
+		retval = sys_page_block_alloc(a1, (void *)a2, a3, a4);
 		break;
 	case SYS_env_set_trapframe:
 		// Double-check the Trapframe pointer
