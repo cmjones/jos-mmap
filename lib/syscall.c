@@ -74,6 +74,12 @@ sys_page_alloc(envid_t envid, void *va, int perm)
 }
 
 int
+sys_page_block_alloc(envid_t envid, void *va, int pgnum, int perm)
+{
+	return syscall(SYS_page_block_alloc, 1, envid, (uint32_t)va, pgnum, perm, 0);
+}
+
+int
 sys_page_map(envid_t srcenv, void *srcva, envid_t dstenv, void *dstva, int perm)
 {
 	return syscall(SYS_page_map, 1, srcenv, (uint32_t) srcva, dstenv, (uint32_t) dstva, perm);
@@ -103,6 +109,12 @@ int
 sys_env_set_pgfault_upcall(envid_t envid, void *upcall)
 {
 	return syscall(SYS_env_set_pgfault_upcall, 1, envid, (uint32_t) upcall, 0, 0, 0);
+}
+
+int
+sys_env_set_region_handler(envid_t envid, void *handler, void *minaddr, void *maxaddr)
+{
+	return syscall(SYS_env_set_region_handler, 1, envid, (uint32_t)handler, (uint32_t)minaddr, (uint32_t)maxaddr, 0);
 }
 
 int
