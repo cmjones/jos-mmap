@@ -183,6 +183,114 @@ sys_env_set_pgfault_upcall(envid_t envid, void *func)
 	return 0;
 }
 
+// Sets a page fault handler for a specific range of addresses for 'envid.'  If
+//  a page fault occurs within the given range, the installed handler will be
+//  called.  Otherwise, the Env's 'env_pgfault_upcall' will be called if it exists.
+//
+// If func is NULL, any page fault handlers in the passed region will be removed.
+//
+// Returns 0 on success, < 0 on error.  Errors are:
+//	-E_BAD_ENV if environment envid doesn't currently exist,
+//		or the caller doesn't have permission to change envid.
+//	-E_NO_MEM if adding this handler would bring the number of handlers
+//		above MAXHANDLERS
+//	-E_INVAL if either address is not page aligned, or the specified
+//		range includes part of the range of a previously
+//		installed handler.
+static int
+sys_env_set_region_handler(envid_t envid, void *func, uint32_t minaddr, uint32_t maxaddr)
+{
+	struct Env *e;
+	int i, j;
+	int dst = -1;
+
+	// Sanity-check the addresses
+	if(minaddr%PGSIZE != 0 || maxaddr%PGSIZE != 0) return -E_INVAL;
+
+	// Grab the environment
+	if(envid2env(envid, &e, 1) != 0) return -E_BAD_ENV;
+
+	if(func != NULL) {
+		// Find an empty slot to put the new handler, or find a previous
+		//  handler that will be deleted upon the installation of the new
+		//  one.  If no such slot exists, this call should fail.
+		for(i = 0; i < MAXHANDLERS; i++) {
+			if(e->env_pgfault_handlers[i].erh_handler == 0 ||
+			   (e->env_pgfault_handlers[i].erh_minaddr >= minaddr &&
+			    e->env_pgfault_handlers[i].erh_maxaddr < maxaddr)) {
+				dst = i;
+				break;
+			}
+		}
+		if(i == MAXHANDLERS) return -E_NO_MEM;
+	}
+
+	// Step through the currently installed handlers and make room for
+	//  the new handler.
+	//
+	// Because of the invariant that no ranges overlap, the only ways
+	//  adding a new handler can fail is if there are already MAXHANDLERS
+	//  handlers installed, or the new range lies completely within a
+	//  previous range (in which case the old handler will have to be
+	//  split into two new ones.
+	for(i = 0; i < MAXHANDLERS; i++) {
+		// Check if the handler exists
+		if(e->env_pgfault_handlers[i].erh_handler == NULL)
+			continue;
+
+		// If the new range is a subset of the old range, we may
+		//  have to ensure there is empty space in the array
+		if(e->env_pgfault_handlers[i].erh_minaddr < minaddr &&
+		   e->env_pgfault_handlers[i].erh_maxaddr > maxaddr) {
+			// Since the old range will have to be split into
+			//  two, find a location to put the second piece.
+			for(j = dst+1; j < MAXHANDLERS; j++) {
+				if(e->env_pgfault_handlers[j].erh_handler == NULL) {
+					// Split the handler into two pieces, with the old slot
+					//  contianing the bottom half.
+					e->env_pgfault_handlers[j].erh_handler = e->env_pgfault_handlers[i].erh_handler;
+					e->env_pgfault_handlers[j].erh_minaddr = maxaddr;
+					e->env_pgfault_handlers[j].erh_maxaddr = e->env_pgfault_handlers[i].erh_maxaddr;
+					e->env_pgfault_handlers[i].erh_maxaddr = minaddr;
+
+					// Because no ranges overlap, the new range will
+					//  not overlap any other handler's ranges.
+					goto success;
+				}
+			}
+
+			// If we make it here, there wasn't room to split
+			//  the old handler.
+			return -E_NO_MEM;
+		}
+
+		// If the new range is a superset of the old range, the old
+		//  handler should be deleted.
+		if(e->env_pgfault_handlers[i].erh_minaddr >= minaddr &&
+		   e->env_pgfault_handlers[i].erh_maxaddr <= maxaddr)
+			e->env_pgfault_handlers[i].erh_handler = NULL;
+
+		// If the new and old range overlap, adjust the old range.
+		if(e->env_pgfault_handlers[i].erh_minaddr < maxaddr &&
+		   e->env_pgfault_handlers[i].erh_maxaddr > maxaddr)
+			e->env_pgfault_handlers[i].erh_minaddr = maxaddr;
+		if(e->env_pgfault_handlers[i].erh_minaddr < minaddr &&
+		   e->env_pgfault_handlers[i].erh_maxaddr > minaddr)
+			e->env_pgfault_handlers[i].erh_maxaddr = minaddr;
+	}
+
+	success:
+	if(func != NULL) {
+		// Once we've reached here, we can install the new handler at slot dst
+		e->env_pgfault_handlers[dst].erh_handler = func;
+		e->env_pgfault_handlers[dst].erh_minaddr = minaddr;
+		e->env_pgfault_handlers[dst].erh_maxaddr = maxaddr;
+	}
+
+	// All done
+	return 0;
+}
+
 // Allocate a page of memory and map it at 'va' with permission
 // 'perm' in the address space of 'envid'.
 // The page's contents are set to 0.
@@ -515,6 +623,9 @@ syscall(uint32_t syscallno, uint32_t a1, uint32_t a2, uint32_t a3, uint32_t a4, 
 		break;
 	case SYS_env_set_pgfault_upcall:
 		retval = sys_env_set_pgfault_upcall(a1, (void *)a2);
+		break;
+	case SYS_env_set_region_handler:
+		retval = sys_env_set_region_handler(a1, (void *)a2, a3, a4);
 		break;
 	case SYS_ipc_try_send:
 		retval = sys_ipc_try_send(a1, a2, (void *)a3, a4);

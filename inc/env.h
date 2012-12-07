@@ -29,6 +29,9 @@ typedef int32_t envid_t;
 #define NENV			(1 << LOG2NENV)
 #define ENVX(envid)		((envid) & (NENV - 1))
 
+// PROJECT: Maximum number of unique page fault handlers per environment
+#define MAXHANDLERS		10
+
 // Values of env_status in struct Env
 enum {
 	ENV_FREE = 0,
@@ -42,6 +45,16 @@ enum {
 enum EnvType {
 	ENV_TYPE_USER = 0,
 	ENV_TYPE_FS,		// File system server
+};
+
+// MMAP:  Describes page fault handlers that are specific to a range of
+//  addresses.  If a pagefault occurs in the range, the page fault handler
+//  is called, otherwise the Env's env_pgfault_upcall is called if it
+//  exists.  Only one pgfault may be installed for any particular address.
+struct EnvRegionHandler {
+	void *erh_handler;		// PgFault handler
+	uint32_t erh_minaddr;		// Lower address of the range
+	uint32_t erh_maxaddr;		// Upper address of the range, inclusive
 };
 
 struct Env {
@@ -59,6 +72,9 @@ struct Env {
 
 	// Exception handling
 	void *env_pgfault_upcall;	// Page fault upcall entry point
+
+	//PROJECT:  List of handlers associated with specific addresses
+	struct EnvRegionHandler env_pgfault_handlers[MAXHANDLERS];
 
 	// Lab 4 IPC
 	bool env_ipc_recving;		// Env is blocked receiving

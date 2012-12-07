@@ -382,6 +382,8 @@ page_fault_handler(struct Trapframe *tf)
 {
 	struct UTrapframe *utfp;
 	uint32_t fault_va;
+	void *handler = NULL;
+	int i;
 
 	// Read processor's CR2 register to find the faulting address
 	fault_va = rcr2();
@@ -421,9 +423,24 @@ page_fault_handler(struct Trapframe *tf)
 	//   user_mem_assert() and env_run() are useful here.
 	//   To change what the user environment runs, modify 'curenv->env_tf'
 	//   (the 'tf' variable points at 'curenv->env_tf').
-	//
+
+	// Try to find an appropriate page fault handler.  First search through
+	//  the environment's region handlers, and if fault_va is contained in
+	//  any of them, use the associated handler.
+	for(i = 0; i < MAXHANDLERS; i++) {
+		if(curenv->env_pgfault_handlers[i].erh_handler != NULL &&
+		   fault_va >= curenv->env_pgfault_handlers[i].erh_minaddr &&
+		   fault_va < curenv->env_pgfault_handlers[i].erh_maxaddr) {
+			handler = curenv->env_pgfault_handlers[i].erh_handler;
+			break;
+		}
+	}
+
+	// If there is no appropriate region handler, use env_pgfault_upcall
+	if(handler == NULL) handler = curenv->env_pgfault_upcall;
+
 	// Check if a user-installed handler exists
-	if(curenv->env_pgfault_upcall != NULL) {
+	if(handler != NULL) {
 		// If tf is on the exception stack, push a word onto the stack,
 		//  otherwise set up UXSTACKTOP as the user exception stack.
 		//  'utfp' is used to more easily push values to the user stack.
@@ -450,7 +467,7 @@ page_fault_handler(struct Trapframe *tf)
 
 			// Now return to the user-defined handler, switching
 			//  to the newly created stack
-			tf->tf_eip = (int)curenv->env_pgfault_upcall;
+			tf->tf_eip = (int)handler;
 			tf->tf_esp = (int)utfp;
 			env_run(curenv);
 		}

@@ -42,12 +42,15 @@ mmap(const char *path, int req_flags, uint32_t req_offset)
 	ipc_send(fsenv, FSREQ_MMAP, &fsipcbuf, PTE_P | PTE_U);
 
 	// receive address
-	r_ipc = ipc_recv(&envid_store, NULL, &perm_store);
+	void *ptr;
+	r_ipc = ipc_recv(&envid_store, &ptr, &perm_store);
 
 	if (DEBUG) {
 		cprintf("mmap(): returned from mmap, in hex: %p, in int: %d \n", r_ipc, r_ipc);
 		cprintf("mmap(): from returned ipc, envid: %x, perm: %x \n", envid_store, perm_store);
 	}
+
+	cprintf("Read from file:\n\t%30s\n", (char *)ptr);
 }
 
 

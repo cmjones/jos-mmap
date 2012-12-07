@@ -265,6 +265,13 @@ env_alloc(struct Env **newenv_store, envid_t parent_id)
 	// Clear the page fault handler until user installs one.
 	e->env_pgfault_upcall = 0;
 
+	// Clear the region page fault handlers as well
+	for(r = 0; r < MAXHANDLERS; r++) {
+		e->env_pgfault_handlers[r].erh_handler = NULL;
+		e->env_pgfault_handlers[r].erh_minaddr = 0;
+		e->env_pgfault_handlers[r].erh_maxaddr = 0;
+	}
+
 	// Also clear the IPC receiving flag.
 	e->env_ipc_recving = 0;
 
