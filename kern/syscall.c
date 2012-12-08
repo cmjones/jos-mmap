@@ -465,7 +465,10 @@ sys_page_block_alloc(envid_t envid, void *va, int pgnum, int perm)
 
 	// Sanity check the virtual address
 	if(va) {
-		if((uint32_t)va >= UTOP || (uint32_t)va%PGSIZE != 0) return -E_INVAL;
+		if((uint32_t)va >= UTOP || (uint32_t)va%PGSIZE != 0) {
+			cprintf("sys_page_block_alloc() - invalid va. \n");
+			return -E_INVAL;
+		}
 		tmpva = ROUNDDOWN(va, PGSIZE);
 	} else { 
 		// If va is not provided, give an initial value

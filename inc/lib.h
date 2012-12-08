@@ -104,7 +104,7 @@ int	remove(const char *path);
 int	sync(void);
 
 // mmap.c
-void*	mmap(void *addr, size_t len, int prot, int flags, int fd, off_t off);
+void *	mmap(void *addr, size_t len, int prot, int flags, int fd, off_t off);
 int	munmap(void *addr, size_t len);
 
 // pageref.c
@@ -143,7 +143,8 @@ void	wait(envid_t env);
 #define O_MKDIR		0x0800		/* create directory, not regular file */
 
 /* MMap flags */
-#define MAP_PRIVATE	0x0001		/* If set, changes are not written to disk. */
+#define MAP_PRIVATE	0x0000		/* If set, changes are not written to disk. */
+#define MAP_SHARED	0x0001	        /* Updates are visiable and carried through */
 
 /* INDEX2FD definitions */
 // Bottom of file descriptor area
