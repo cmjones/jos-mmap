@@ -472,14 +472,20 @@ sys_page_block_alloc(envid_t envid, void *va, int pgnum, int perm)
 		tmpva = ROUNDDOWN(va, PGSIZE);
 	} else { 
 		// If va is not provided, give an initial value
-		tmpva = page2kva(get_free_page()); // TODO: check correctness
+		// tmpva = (void *) page2kva(get_free_page()); // TODO: check correctness
+		tmpva = (void *) UTEXT;
 	}
 
 	// Scan the memory for free pages
 	counter = 0;
+	cprintf("Scanning memory for %d free page(s)...\n", pgnum);
 	while (counter < pgnum) { 
+		// cprintf("tmpva: %p \t counter: %d\n", (uint32_t) tmpva, counter);
 		// If 'tmpva' is out of bound, fail
-		if((uint32_t)tmpva >= UTOP) return -E_INVAL;
+		if((uint32_t)tmpva >= UTOP) {
+			cprintf("tmpva out of bound. fail.\n");
+			return -E_INVAL;
+		}
 
 		// Test free pages
 		if(pgdir_walk(e->env_pgdir, tmpva, 0) == NULL) {

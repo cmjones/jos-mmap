@@ -76,7 +76,7 @@ sys_page_alloc(envid_t envid, void *va, int perm)
 int
 sys_page_block_alloc(envid_t envid, void *va, int pgnum, int perm)
 {
-	return syscall(SYS_page_block_alloc, 1, envid, (uint32_t)va, pgnum, perm, 0);
+	return syscall(SYS_page_block_alloc, 0, envid, (uint32_t)va, pgnum, perm, 0);
 }
 
 int
