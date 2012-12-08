@@ -178,33 +178,74 @@ serve_open(envid_t envid, struct Fsreq_open *req,
 	return 0;
 }
 
+// Private pagefault handler similar to the one in fork.c.  If a
+//  write fault occurs on a PTE_COW block, copy the contents of
+//  the block to a new page and map the new page to the old.
+static void
+pgfault(struct UTrapframe *utf)
+{
+	void *addr = (void *) utf->utf_fault_va;
+	uint32_t err = utf->utf_err;
+
+	// Round the address down to the nearest page
+	addr = ROUNDDOWN(addr, PGSIZE);
+
+	// Check that the faulting access was (1) a write, and (2) to a
+	// copy-on-write page.  If not, panic.
+	//
+	// If the second bit of err is not set, the fault is a read
+	if((err&2) == 0)
+		panic("fault was not caused by a write\n");
+	if((uvpt[PGNUM(addr)]&PTE_COW) == 0)
+		panic("faulting page was not copy-on-write");
+
+	// Allocate a new page, map it at a temporary location (PFTEMP),
+	// copy the data from the old page to the new page, then move the new
+	// page to the old page's address.
+	//
+	// First attempt to allocate a new page at the temporary address
+	if(sys_page_alloc(0, PFTEMP, PTE_U|PTE_W) != 0)
+		panic("couldn't allocate a new page for copy-on-write");
+
+	// Next, copy the memory from the old page to the new
+	memcpy(PFTEMP, addr, PGSIZE);
+
+	// Finally, remap the new page to the old address.  Don't bother
+	//  cleaning up PFTEMP.
+	if(sys_page_map(0, PFTEMP, 0, addr, PTE_U|PTE_W) != 0)
+		panic("couldn't remap the temporary page for copy-on-write");
+}
+
 // For the file req->req_fileid, find the block of memory that
 //  holds req->req_offset and stores the address and permissions
 //  in *pg_store and *perm_store.
 int
-serve_mmap(envid_t envid, struct Fsreq_mmap *req,
+serve_block_req(envid_t envid, struct Fsreq_breq *req,
 	   void **pg_store, int *perm_store)
 {
 	int r;
 	struct OpenFile *o;
 
 	if(debug)
-		cprintf("serve_mmap %08x %08x %08x %08x\n", envid, req->req_fileid, req->req_flags, req->req_offset);
+		cprintf("serve_block_req %08x %08x %08x %08x\n", envid, req->req_fileid, req->req_offset, req->req_perm);
 
 	// Find the relevant open file to map
 	if ((r = openfile_lookup(envid, req->req_fileid, &o)) < 0)
 		return r;
 
 	// If the file is opened in a read-only mode, then the
-	//  mmapped block must be opened with MAP_PRIVATE, since
-	//  no changes would be written to disk.  Otherwise,
-	//  files must be opened with write permissions to be able
-	//  to be mmapped.
+	//  block cannot be requested with PTE_W (though it can
+	//  be requested with PTE_COW).
 	//
-	// All mmapped files must have read access
+	// All files must have read access to request a block
 	if((o->o_mode&O_ACCMODE) == O_WRONLY ||
-	   ((o->o_mode&O_ACCMODE) == O_RDONLY && (req->req_flags&MAP_PRIVATE) == 0))
+	   ((o->o_mode&O_ACCMODE) == O_RDONLY && (req->req_perm&PTE_W) == 1))
 		return -E_MODE_ERR;
+
+	// In addition, blocks cannot be requested with both PTE_COW
+	//  and PTE_SHARE
+	if((req->req_perm&PTE_COW) && (req->req_perm&PTE_SHARE))
+		return -E_INVAL;
 
 	// Ensure that req->offset is contained within the file, and
 	//  grab the page that contains it.
@@ -218,20 +259,17 @@ serve_mmap(envid_t envid, struct Fsreq_mmap *req,
 	if(!va_is_mapped(*pg_store))
 		read_block(*pg_store);
 
-	// Mapped pages will always have read access.  If the requested
-	//  mode is MAP_PRIVATE, then permissions for both the new page
-	//  and the page in our memory should be PTE_COW
-	*perm_store = PTE_P|PTE_U;
-	if((req->req_flags&MAP_PRIVATE) == 0) {
-		*perm_store |= PTE_W;
-	} else {
-		*perm_store |= PTE_COW;
-
-		// Store our own mapping as PTE_COW
-		// TODO: make sure a page handler is registered for this
-		//  environment/this address.
-		if(sys_page_map(0, *pg_store, 0, *pg_store, *perm_store) != 0)
+	// If requesting a PTE_COW mapping, we should mark the file in
+	//  our address space as PTE_COW as well.
+	*perm_store = req->req_perm;
+	if(req->req_perm&PTE_COW) {
+		// Map the file block's page as PTE_COW
+		if(sys_page_map(0, *pg_store, 0, *pg_store, PTE_U|PTE_COW) != 0)
 			panic("file system unable to map own page as copy-on-write");
+
+		// Set a page-fault handler
+		if(sys_env_set_pgfault_upcall(0, pgfault) != 0)
+			panic("file system unable to set a pagefault handler");
 	}
 
 	// All set, page should be mapped appropriately
@@ -418,10 +456,10 @@ serve_sync(envid_t envid, union Fsipc *req)
 typedef int (*fshandler)(envid_t envid, union Fsipc *req);
 
 fshandler handlers[] = {
-	// Open and mmap are handled specially because
+	// Open and block_req are handled specially because
 	// they pass pages
 	/* [FSREQ_OPEN] =	(fshandler)serve_open, */
-	/* [FSREQ_MMAP] =	(fshandler)serve_mmap, */
+	/* [FSREQ_BREQ] =	(fshandler)serve_block_req, */
 	[FSREQ_READ] =		serve_read,
 	[FSREQ_WRITE] =		serve_write,
 	[FSREQ_STAT] =		serve_stat,
@@ -456,8 +494,8 @@ serve(void)
 		pg = NULL;
 		if (req == FSREQ_OPEN) {
 			r = serve_open(whom, (struct Fsreq_open*)fsreq, &pg, &perm);
-		} else if (req == FSREQ_MMAP) {
-			r = serve_mmap(whom, (struct Fsreq_mmap*)fsreq, &pg, &perm);
+		} else if (req == FSREQ_BREQ) {
+			r = serve_block_req(whom, (struct Fsreq_breq*)fsreq, &pg, &perm);
 		} else if (req < NHANDLERS && handlers[req]) {
 			r = handlers[req](whom, fsreq);
 		} else {
