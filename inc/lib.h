@@ -103,6 +103,10 @@ int	ftruncate(int fd, off_t size);
 int	remove(const char *path);
 int	sync(void);
 
+// mmap.c
+void*	mmap(void *addr, size_t len, int prot, int flags, int fd, off_t off);
+int	munmap(void *addr, size_t len);
+
 // pageref.c
 int	pageref(void *addr);
 
