@@ -26,40 +26,11 @@ umain(int argc, char **argv)
 	case 0:
 		cprintf("Test directly mmaping a file via fs ipc request.\n");
 
-		extern union Fsipc fsipcbuf;
-		envid_t fsenv;
-		int r_ipc;
-		envid_t envid_store;
-		int perm_store;
-
-		// set up the fsipc request
-		fsipcbuf.breq.req_fileid = fileid;
-		fsipcbuf.breq.req_offset = 0;
-		fsipcbuf.breq.req_perm = PTE_U | PTE_W | PTE_SHARE;
-
-		fsenv = ipc_find_env(ENV_TYPE_FS);
-		if (DEBUG)
-			cprintf("fsenv found: %p \n", fsenv);
-
-		ipc_send(fsenv, FSREQ_BREQ, &fsipcbuf, PTE_P | PTE_U);
-
-		// receive address
 		char *content = (char *)0x20005000;
-		cprintf("before uvpd: %p\n", uvpd[PDX(content)]);
-		if (uvpd[PDX(content)] & PTE_P)
-			cprintf("before uvpt: %p\n", uvpt[PGNUM(content)]);
-
-		r_ipc = ipc_recv_src(fsenv, &envid_store, content, &perm_store);
-
-		if (DEBUG) {
-			cprintf("testmmap - returned from breq, in hex: %p, in int: %d \n", r_ipc, r_ipc);
-			cprintf("testmmap - from returned ipc, content: %p, envid: %p, perm: %p \n", content, envid_store, perm_store);
-		}
-
-		cprintf("after uvpd: %p\n", uvpd[PDX(content)]);
-		if (uvpd[PDX(content)] & PTE_P) {
-			cprintf("after uvpt: %p\n", uvpt[PGNUM(content)] & PTE_SYSCALL);
-		}
+		uint32_t perm = PTE_U | PTE_W | PTE_SHARE;
+		int ret_rb = request_block(fd, 0, content, perm);
+		if (ret_rb < 0)
+			panic("FIALEDDDD! : %d\n", ret_rb);
 
 		cprintf("Read from file:\n\t%30s\n", content);
 		break;

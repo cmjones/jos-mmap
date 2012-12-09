@@ -102,6 +102,7 @@ int	open(const char *path, int mode);
 int	ftruncate(int fd, off_t size);
 int	remove(const char *path);
 int	sync(void);
+int     request_block(struct Fd *fd, off_t offset, void * dstva, uint32_t perm);
 
 // mmap.c
 void *	mmap(void *addr, size_t len, int prot, int flags, int fd_num, off_t off);
