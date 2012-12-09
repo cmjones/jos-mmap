@@ -10,13 +10,22 @@
 struct mmap_metadata {
 	int mmmd_fileid;
 	uint32_t mmmd_fileoffset;
-	void *mmmd_startaddr;
-	void *mmmd_endaddr;
+	uint32_t mmmd_startaddr;
+	uint32_t mmmd_endaddr;
 };
 
 // Returns the metadata struct for index i.
 #define INDEX2MMAP(i)	((struct mmap_metadata*) (MMAPTABLE + (i)*0x1000))
 
+
+// Unmaps pages from the given range
+static inline void
+page_unmap(uint32_t start, uint32_t end)
+{
+	int i;
+	for(i = start; i < end; i += PGSIZE)
+		sys_page_unmap(0, (void *)i);
+}
 
 // Implementation of mmap(), which maps address space to a memory object.
 // Sets up a mapping between a section of a process' virtual address space,
@@ -26,8 +35,9 @@ struct mmap_metadata {
 void *
 mmap(void *addr, size_t len, int prot, int flags, int fd_num, off_t off)
 {
-	struct mmap_metadata mmmd;
+	struct mmap_metadata *mmmd;
 	uint32_t retva, i;
+	int r;
 
 	// Sanity check for offset, which must be a multiple of PGSIZE.
 	if ((off % PGSIZE) != 0) return (void *)-E_INVAL;
@@ -58,11 +68,11 @@ mmap(void *addr, size_t len, int prot, int flags, int fd_num, off_t off)
 	// struct, fills in its values, and returns retva. Returns negative on
 	// failure.  Unallocated meta-data slots have mmmd_endaddr = NULL
 	for (i = 0; i < MAXMMAP; i++) {
-		if((mmmd = INDEX2MMAP(i)).mmd_endaddr == NULL) {
-			mmmd.mmmd_fileid = fd_num;
-			mmmd.mmmd_fileoffset = off;
-			mmmd.mmmd_startaddr = retva;
-			mmmd.mmmd_endaddr = retva+len;
+		if((mmmd = INDEX2MMAP(i))->mmmd_endaddr == 0) {
+			mmmd->mmmd_fileid = fd_num;
+			mmmd->mmmd_fileoffset = off;
+			mmmd->mmmd_startaddr = retva;
+			mmmd->mmmd_endaddr = retva+len;
 		}
 	}
 
@@ -84,6 +94,76 @@ mmap(void *addr, size_t len, int prot, int flags, int fd_num, off_t off)
 int
 munmap(void *addr, size_t len)
 {
+	struct mmap_metadata *mmmd, *temp;
+	int i, j;
+
+	// Ensure addr is page-aligned, and pre-calculate an address range
+	uint32_t minaddr = (uint32_t)addr;
+	uint32_t maxaddr = (uint32_t)addr + ROUNDUP(len, PGSIZE);
+	if(minaddr%PGSIZE != 0) return -E_INVAL;
+
+	// Step through the meta-data array and remove any mmapped regions
+	//  that lie within the address range.  Every time a region is
+	//  removed, the corresponding virtual addresses must be unmapped.
+	//
+	// An error may be thrown here if the range lies in the middle of
+	//  an mmapped region, and there are MAXMMAP regions already.  There
+	//  will not be room for the two mmap regions that will be the result.
+	for(i = 0; i < MAXMMAP; i++) {
+		// Check if this slot has been allocated
+		if((mmmd = INDEX2MMAP(i))->mmmd_endaddr == 0)
+			continue;
+
+		// If the new range is a subset of the old range, we may
+		//  have to ensure there is empty space in the array
+		if(mmmd->mmmd_startaddr < minaddr && mmmd->mmmd_endaddr > maxaddr) {
+			// Since the old range will have to be split into
+			//  two, find a location to put the second piece.
+			for(j = 0; j < MAXMMAP; j++) {
+				if((temp = INDEX2MMAP(j))->mmmd_endaddr == 0) {
+					// Split the handler into two pieces, with the old slot
+					//  contianing the bottom half.
+					mmmd->mmmd_fileid = mmmd->mmmd_fileid;
+
+			    		// Calculate the file offset of the new mmap region
+					mmmd->mmmd_fileoffset = mmmd->mmmd_fileoffset+maxaddr-mmmd->mmmd_startaddr;
+
+					temp->mmmd_startaddr = maxaddr;
+					temp->mmmd_endaddr = mmmd->mmmd_endaddr;
+					mmmd->mmmd_endaddr = minaddr;
+
+					// Because no ranges overlap, the new range will
+					//  not overlap any other mmap regions.  Unmap all
+					//  of the pages in the address range
+					page_unmap(minaddr, maxaddr);
+					goto success;
+				}
+			}
+
+			// If we make it here, there wasn't room to split the region
+			return -E_NO_MEM;
+		}
+
+		// If the new range is a superset of the old range, the old
+		//  region should be removed.
+		if(mmmd->mmmd_startaddr >= minaddr && mmmd->mmmd_endaddr <= maxaddr) {
+			page_unmap(mmmd->mmmd_startaddr, mmmd->mmmd_endaddr);
+			mmmd->mmmd_endaddr = 0;
+		}
+
+		// If the new and old range overlap, adjust the old range.
+		if(mmmd->mmmd_startaddr < maxaddr && mmmd->mmmd_endaddr > maxaddr) {
+			page_unmap(mmmd->mmmd_startaddr, maxaddr);
+			mmmd->mmmd_fileoffset += maxaddr-mmmd->mmmd_startaddr;
+			mmmd->mmmd_startaddr = maxaddr;
+		} else if(mmmd->mmmd_startaddr < minaddr && mmmd->mmmd_endaddr > minaddr) {
+			page_unmap(minaddr, mmmd->mmmd_endaddr);
+			mmmd->mmmd_endaddr = minaddr;
+		}
+	}
+
+	// Once we've reached here, we're done
+	success:
 	return 0;
 }
 
