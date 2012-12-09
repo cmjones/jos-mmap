@@ -12,7 +12,7 @@ mmap_path(const char *path, int req_flags, uint32_t req_offset)
 	if (DEBUG)
 		cprintf("mmap() called for path: \"%s\" \n", path);
 
-	extern union Fsipc fsipcbuf;
+	union Fsipc fsipcbuf;
 	envid_t fsenv;
 	int fileid;
 	struct Fd *fd;

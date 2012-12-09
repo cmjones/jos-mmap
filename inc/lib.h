@@ -149,6 +149,10 @@ void	wait(envid_t env);
 #define MAP_PRIVATE	0x0000		/* If set, changes are not written to disk. */
 #define MAP_SHARED	0x0001	        /* Updates are visiable and carried through */
 
+/* MMap Memory Protection bits */
+#define PROT_READ       0x0000
+#define PROT_WRITE      0x0001
+
 /* INDEX2FD definitions */
 // Bottom of file descriptor area
 #define FDTABLE		0xD0000000

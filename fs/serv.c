@@ -9,7 +9,7 @@
 #include "fs.h"
 
 
-#define debug 0
+#define debug 1
 
 // The file system server maintains three structures
 // for each open file.
@@ -226,8 +226,9 @@ serve_block_req(envid_t envid, struct Fsreq_breq *req,
 	int r;
 	struct OpenFile *o;
 
-	if(debug)
+	if(debug) {
 		cprintf("serve_block_req %08x %08x %08x %08x\n", envid, req->req_fileid, req->req_offset, req->req_perm);
+	}
 
 	// Find the relevant open file to map
 	if ((r = openfile_lookup(envid, req->req_fileid, &o)) < 0)
@@ -269,6 +270,11 @@ serve_block_req(envid_t envid, struct Fsreq_breq *req,
 
 		// Set a page-fault handler
 		set_pgfault_handler(pgfault);
+	}
+
+	if (debug) {
+		cprintf("Page mapped correctly to %p.\n", *pg_store);
+		cprintf("Breq - Read from file:\n\t%30s\n", (char *)*pg_store);
 	}
 
 	// All set, page should be mapped appropriately
@@ -457,8 +463,8 @@ typedef int (*fshandler)(envid_t envid, union Fsipc *req);
 fshandler handlers[] = {
 	// Open and block_req are handled specially because
 	// they pass pages
-	/* [FSREQ_OPEN] =	(fshandler)serve_open, */
-	/* [FSREQ_BREQ] =	(fshandler)serve_block_req, */
+	[FSREQ_OPEN] =	(fshandler)serve_open,
+	[FSREQ_BREQ] =	(fshandler)serve_block_req,
 	[FSREQ_READ] =		serve_read,
 	[FSREQ_WRITE] =		serve_write,
 	[FSREQ_STAT] =		serve_stat,

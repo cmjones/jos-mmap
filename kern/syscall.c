@@ -637,7 +637,8 @@ sys_ipc_recv(envid_t source, void *dstva)
 	if(source != 0 && envid2env(source, &env, 0) != 0) return -E_BAD_ENV;
 
 	// Sanity-check dstva
-	if((unsigned int)dstva < UTOP && (int)dstva%PGSIZE != 0) return -E_INVAL;
+	if((unsigned int)dstva < UTOP && (int)dstva%PGSIZE != 0)
+		return -E_INVAL;
 
 	// Set up this environment to recieve ipcs
 	curenv->env_ipc_recving = true;
