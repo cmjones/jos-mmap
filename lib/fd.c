@@ -162,6 +162,16 @@ close_all(void)
 		close(i);
 }
 
+int
+fgetid(int fdnum)
+{
+	struct Fd *fd;
+	int r;
+
+	if ((r = fd_lookup(fdnum, &fd)) < 0) return r;
+	return fd->fd_file.id;
+}
+
 // Make file descriptor 'newfdnum' a duplicate of file descriptor 'oldfdnum'.
 // For instance, writing onto either file descriptor will affect the
 // file and the file offset of the other.
@@ -314,4 +324,5 @@ stat(const char *path, struct Stat *stat)
 	close(fd);
 	return r;
 }
+
 

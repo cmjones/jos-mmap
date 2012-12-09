@@ -18,8 +18,7 @@ umain(int argc, char **argv)
 	// First, open file 'lorem' and get the file id.
 	if ((r_open = open("/lorem", O_RDONLY)) < 0)
 		panic("mmap(): opening file failed, ERROR CODE: %d \n", r_open);
-	fd = INDEX2FD(r_open);
-	fileid = fd->fd_file.id;
+	fileid = fgetid(r_open);
 	
 	// Start testing.
 	switch (TESTNUM) {
@@ -28,7 +27,7 @@ umain(int argc, char **argv)
 
 		char *content = (char *)0x20005000;
 		uint32_t perm = PTE_U | PTE_W | PTE_SHARE;
-		int ret_rb = request_block(fd, 0, content, perm);
+		int ret_rb = request_block(fileid, 0, content, perm);
 		if (ret_rb < 0)
 			panic("FIALEDDDD! : %d\n", ret_rb);
 

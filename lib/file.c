@@ -195,15 +195,15 @@ sync(void)
 	return fsipc(FSREQ_SYNC, NULL);
 }
 
-
 // Request a file block to a given address
 int
-request_block(struct Fd *fd, off_t offset, void * dstva, uint32_t perm)
+request_block(int fileid, off_t offset, void * dstva, uint32_t perm)
 {
 	// set up the fsipc request
-	fsipcbuf.breq.req_fileid = fd->fd_file.id;
+	fsipcbuf.breq.req_fileid = fileid;
 	fsipcbuf.breq.req_offset = offset;
 	fsipcbuf.breq.req_perm = perm;
 
+	// and send it to the file system
 	return fsipc(FSREQ_BREQ, dstva);
 }

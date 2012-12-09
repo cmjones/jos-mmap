@@ -87,6 +87,7 @@ envid_t	fork(void);
 envid_t	sfork(void);	// Challenge!
 
 // fd.c
+int	ftruncate(int fd, off_t size);
 int	close(int fd);
 ssize_t	read(int fd, void *buf, size_t nbytes);
 ssize_t	write(int fd, const void *buf, size_t nbytes);
@@ -96,13 +97,13 @@ ssize_t	readn(int fd, void *buf, size_t nbytes);
 int	dup(int oldfd, int newfd);
 int	fstat(int fd, struct Stat *statbuf);
 int	stat(const char *path, struct Stat *statbuf);
+int	fgetid(int fd);
 
 // file.c
 int	open(const char *path, int mode);
-int	ftruncate(int fd, off_t size);
 int	remove(const char *path);
 int	sync(void);
-int     request_block(struct Fd *fd, off_t offset, void * dstva, uint32_t perm);
+int     request_block(int fileid, off_t offset, void * dstva, uint32_t perm);
 
 // mmap.c
 void *	mmap(void *addr, size_t len, int prot, int flags, int fd_num, off_t off);
