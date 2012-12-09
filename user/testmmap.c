@@ -1,6 +1,6 @@
 #include <inc/lib.h>
 
-#define TESTNUM 0
+#define TESTNUM 3
 #define DEBUG 1
 
 void
@@ -14,6 +14,8 @@ umain(int argc, char **argv)
 	size_t length;
 	void *mmaped_addr;
 
+	char *content;
+
 	cprintf("\nRunning testmmap...\n");
 	// First, open file 'lorem' and get the file id.
 	if ((r_open = open("/lorem", O_RDONLY)) < 0)
@@ -25,7 +27,7 @@ umain(int argc, char **argv)
 	case 0:
 		cprintf("Test directly mmaping a file via fs ipc request.\n");
 
-		char *content = (char *)0x20005000;
+		content = (char *)0x20005000;
 		uint32_t perm = PTE_U | PTE_W | PTE_SHARE;
 		int ret_rb = request_block(fileid, 0, content, perm);
 		if (ret_rb < 0)
@@ -36,10 +38,9 @@ umain(int argc, char **argv)
 	case 1:
 		cprintf("Test mmaping file as SHARED, read from it, and print out the content.\n");
 		length = PGSIZE;
-		mmaped_addr = mmap((void *) NULL, length, PROT_READ, MAP_SHARED, fileid, (off_t) 0);
-		char *file_content = (char *) mmaped_addr;
-		int counter = 0;
-		cprintf(file_content);
+		mmaped_addr = mmap(NULL, length, 0, MAP_SHARED, fileid, (off_t) 0);
+		content = (char *) mmaped_addr;
+		cprintf(content);
 		break;
 	case 2:
 		cprintf("Test mmaping file as SHARED, read from it, print out the content.\n \
@@ -47,6 +48,10 @@ umain(int argc, char **argv)
 		break;
 	case 3:
 		cprintf("Test mmaping file as PRIVATE, read from it, and print out the content.\n");
+		length = PGSIZE;
+		mmaped_addr = mmap(NULL, length, PTE_W, MAP_PRIVATE, fileid, (off_t) 0);
+		content = (char *) mmaped_addr;
+		cprintf(content);
 		break;
 	case 4:
 		cprintf("Test mmaping file as PRIVATE, read from it, print out the content.\n \
