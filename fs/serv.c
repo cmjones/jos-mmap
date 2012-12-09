@@ -268,8 +268,7 @@ serve_block_req(envid_t envid, struct Fsreq_breq *req,
 			panic("file system unable to map own page as copy-on-write");
 
 		// Set a page-fault handler
-		if(sys_env_set_pgfault_upcall(0, pgfault) != 0)
-			panic("file system unable to set a pagefault handler");
+		set_pgfault_handler(pgfault);
 	}
 
 	// All set, page should be mapped appropriately
