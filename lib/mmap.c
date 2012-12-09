@@ -2,20 +2,21 @@
 
 #define debug	0
 
-// Maximum number of mmapped regions. Default is 256, as the required metadata
+// Maximum number of mmapped regions. Default is 204, as the required metadata
 // fill fit on a single page.
-#define MAXMMAP	256
+#define MAXMMAP	204
 
 // Struct for storing the metadata about each mmapped region.
 struct mmap_metadata {
 	int mmmd_fileid;
 	uint32_t mmmd_fileoffset;
+	uint32_t mmmd_perm;
 	uint32_t mmmd_startaddr;
 	uint32_t mmmd_endaddr;
 };
 
 // Returns the metadata struct for index i.
-#define INDEX2MMAP(i)	((struct mmap_metadata*) (MMAPTABLE + (i)*0x1000))
+#define INDEX2MMAP(i)	((struct mmap_metadata*) (MMAPTABLE + (i)*sizeof(struct mmap_metadata)))
 
 
 // Unmaps pages from the given range
@@ -23,8 +24,13 @@ static inline void
 page_unmap(uint32_t start, uint32_t end)
 {
 	int i;
+
+	// Loop through the region and unmap each memory block
 	for(i = start; i < end; i += PGSIZE)
 		sys_page_unmap(0, (void *)i);
+
+	// Remove any handlers from the unmapped region
+	sys_env_set_region_handler(0, NULL, (void *) start, (void *) end);
 }
 
 // Implementation of mmap(), which maps address space to a memory object.
@@ -33,10 +39,10 @@ page_unmap(uint32_t start, uint32_t end)
 // continuing for len bytes. Returns a pointer to the mapped address if
 // successful; otherwise, returns a negative pointer.
 void *
-mmap(void *addr, size_t len, int prot, int flags, int fd_num, off_t off)
+mmap(void *addr, size_t len, int prot, int flags, int fd, off_t off)
 {
 	struct mmap_metadata *mmmd;
-	uint32_t retva, i;
+	uint32_t retva, i, fileid;
 	int r;
 
 	// Sanity check for offset, which must be a multiple of PGSIZE.
@@ -46,8 +52,11 @@ mmap(void *addr, size_t len, int prot, int flags, int fd_num, off_t off)
 	if ((prot & ~PTE_W) != 0) return (void *) -E_INVAL;
 
 	// Round 'len' up to the nearest page size, since mappings are
-	//  done with page granularity
+	// done with page granularity
 	len = ROUNDUP(len, PGSIZE);
+
+	// Get fileid from fd number.
+	fileid = fgetid(fd);
 
 	// Attempt to find a contiguous region of memeory of size len
 	cprintf("mmap() - find free memory \n");
@@ -59,7 +68,7 @@ mmap(void *addr, size_t len, int prot, int flags, int fd_num, off_t off)
 	cprintf("mmap() - start memory address: %p, UTOP: %p \n", (uint32_t)retva, UTOP); // va>UTOP??
 
 	// Allocates a page to hold mmaped_region structs if one hasn't
-	//  been allocated yet.
+	// been allocated yet.
 	if((!(uvpd[PDX(MMAPTABLE)]&PTE_P) || !(uvpt[PGNUM(MMAPTABLE)]&PTE_P)) &&
 	   (r = sys_page_alloc(0, (void *) MMAPTABLE, PTE_P|PTE_W|PTE_U)) < 0)
 		panic("sys_page_alloc: %e", r);
@@ -69,10 +78,15 @@ mmap(void *addr, size_t len, int prot, int flags, int fd_num, off_t off)
 	// failure.  Unallocated meta-data slots have mmmd_endaddr = NULL
 	for (i = 0; i < MAXMMAP; i++) {
 		if((mmmd = INDEX2MMAP(i))->mmmd_endaddr == 0) {
-			mmmd->mmmd_fileid = fd_num;
+			mmmd->mmmd_fileid = fileid;
 			mmmd->mmmd_fileoffset = off;
+			// Adds prot flags. PTE_U for all, PTE_FOR for MAP_PRIVATE,
+			// and PTE_SHARE for MAP_SHARED.
+			mmmd->mmmd_perm = prot | PTE_U |
+				((flags & MAP_PRIVATE) ? PTE_COW : PTE_SHARE);
 			mmmd->mmmd_startaddr = retva;
 			mmmd->mmmd_endaddr = retva+len;
+			
 		}
 	}
 
@@ -83,10 +97,11 @@ mmap(void *addr, size_t len, int prot, int flags, int fd_num, off_t off)
 	// Install the correct handler for the type of mapping created
 	if ((flags & MAP_SHARED) != 0)
 		sys_env_set_region_handler(0, mmap_shared_handler, (void *) retva,
-					   (void *)(retva + len));
+					   (void * )(retva + len));
+
 	else
 		sys_env_set_region_handler(0, mmap_private_handler, (void *) retva,
-					   (void *)(retva + len));
+					   (void * )(retva + len));
 
 	return (void *) retva;
 }
@@ -171,36 +186,77 @@ munmap(void *addr, size_t len)
 static void
 mmap_shared_handler(struct UTrapframe *utf)
 {
-	//union Fsipc fsipcbuf;
-
-	void *addr = (void *) utf->utf_fault_va;
-	uint32_t err = utf->utf_err;
-
-	//fsibcbuf.breq.req_fileid = 0x0;
-	//fsibcbuf.breq.req_offset = 0x1;
-	//fsibcbuf.breq.req_perm = 0x1;
+	struct mmap_metadata *mmmd;
+	uint32_t err, i;
+	void *addr;
 	
-	// TODO: Look up mmap region meta data using va
-	// 	 Not sure the best way to do this, maybe redo the struct?
-	
-	// TODO: Determine fault type r/w and set appropriate perms.
-	//	 If 0, then 0. If PTE_W, then PTE_W
+	addr = (void *) utf->utf_fault_va;
+	err = utf->utf_err;
 
-	// TODO: Make the appropriate IPC call to the FS.
-	 
+	// Iterates through the mmap handlers, setting mmmd to the mmap
+	// metdata struct that contains the mapped region.
+	for (i = 0; i < MAXMMAP; i++) {
+		mmmd = INDEX2MMAP(i);
+		if ((uint32_t) addr < mmmd->mmmd_endaddr &&
+		    (uint32_t) addr >= mmmd->mmmd_startaddr)
+			break;
+	}
+
+	// Page aligning addr for filesystem request.
+	addr = ROUNDDOWN(addr, PGSIZE);
+
+	if ((err & 2) && !(mmmd->mmmd_perm & PTE_W))
+		panic("tried to write in a non-writeable mmapped region.\n");
+
+	if (request_block(mmmd->mmmd_fileid, mmmd->mmmd_fileoffset, addr,
+			  mmmd->mmmd_perm) < 0)
+		panic("request block failed in mmap handler.\n");
 }
 
 // Handler for pages mmapped with the MAP_PRIVATE flag
 static void
 mmap_private_handler(struct UTrapframe *utf)
 {
-	void *addr = (void *) utf->utf_fault_va;
-	uint32_t err = utf->utf_err;
+	struct mmap_metadata *mmmd;
+	uint32_t err, i;
+	void *addr;
+	
+	addr = (void *) utf->utf_fault_va;
+	err = utf->utf_err;
 
-	// TODO: Look up mmap region meta data using va
+	// Iterates through the mmap handlers, setting mmmd to the mmap
+	// metdata struct that contains the mapped region.
+	for (i = 0; i < MAXMMAP; i++) {
+		mmmd = INDEX2MMAP(i);
+		if ((uint32_t) addr < mmmd->mmmd_endaddr &&
+		    (uint32_t) addr >= mmmd->mmmd_startaddr)
+			break;
+	}
 
-	// TODO: Determine fault type r/w and set appropriate perms.
-	//	 If 0, then 0. If PTE_W, then copy perms and PTE_W
+	// Page aligning addr for filesystem request.
+	addr = ROUNDDOWN(addr, PGSIZE);
 
-	// TODO: Make the appropriate IPC call to the FS.
+	// Request the file block only if we don't have it yet
+	if((!(uvpd[PDX(addr)]&PTE_P) || !(uvpt[PGNUM(addr)]&PTE_P)) &&
+	   request_block(mmmd->mmmd_fileid, mmmd->mmmd_fileoffset, addr,
+		   	 mmmd->mmmd_perm) < 0)
+		panic("request block failed in mmap handler.\n");
+
+
+	if (err & 2) {
+		if (!(mmmd->mmmd_perm & PTE_W)) {
+			panic("tried to write in a non-writeable mmapped region.\n");
+		} else {
+			// The fault is writeable and we have write permissions
+			// so we allocate a temp page, copy memory, and map the
+			// new page to the fault address.
+			if (sys_page_alloc(0, PFTEMP, PTE_U|PTE_W) != 0)
+				panic("couldn't allocate a new page for COW.\n");
+
+			memcpy(PFTEMP, addr, PGSIZE);
+
+			if (sys_page_map(0, PFTEMP, 0, addr, PTE_U|PTE_W) != 0)
+				panic("couldn't remap temp page for COW.\n");
+		}
+	}
 }

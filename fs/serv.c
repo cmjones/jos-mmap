@@ -263,13 +263,23 @@ serve_block_req(envid_t envid, struct Fsreq_breq *req,
 	// If requesting a PTE_COW mapping, we should mark the file in
 	//  our address space as PTE_COW as well.
 	*perm_store = req->req_perm;
-	if(req->req_perm&PTE_COW) {
+	if(*perm_store&PTE_COW) {
 		// Map the file block's page as PTE_COW
 		if(sys_page_map(0, *pg_store, 0, *pg_store, PTE_U|PTE_COW) != 0)
 			panic("file system unable to map own page as copy-on-write");
 
 		// Set a page-fault handler
 		set_pgfault_handler(pgfault);
+
+		// If the requested permissions don't include PTE_W, the
+		// permissions should be read-only.  If they do, the permissions
+		// should be PTE_COW.
+		if(*perm_store&PTE_W)
+			// Unset PTE_COW
+			*perm_store &= ~PTE_COW;
+		else
+			// Unset PTE_W
+			*perm_store &= ~PTE_W;
 	}
 
 	if (debug) {
