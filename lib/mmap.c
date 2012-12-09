@@ -6,11 +6,6 @@
 // fill fit on a single page.
 #define MAXMMAP	256
 
-#define	MMAPMETADATA	
-
-// Returns the metadata struct for index i.
-#define INDEX2MMAP(i)	((struct mmap_metadata*) (MMAPTABLE + (i)*0x1000))
-
 // Struct for storing the metadata about each mmapped region.
 struct mmap_metadata {
 	int mmmd_fileid;
@@ -18,6 +13,9 @@ struct mmap_metadata {
 	void *mmmd_startaddr;
 	void *mmmd_endaddr;
 };
+
+// Returns the metadata struct for index i.
+#define INDEX2MMAP(i)	((struct mmap_metadata*) (MMAPTABLE + (i)*0x1000))
 
 
 // Implementation of mmap(), which maps address space to a memory object.
@@ -28,6 +26,7 @@ struct mmap_metadata {
 void *
 mmap(void *addr, size_t len, int prot, int flags, int fd_num, off_t off)
 {
+	struct mmap_metadata mmmd;
 	uint32_t retva, i;
 
 	// Sanity check for offset, which must be a multiple of PGSIZE.
@@ -36,44 +35,50 @@ mmap(void *addr, size_t len, int prot, int flags, int fd_num, off_t off)
 	// Sanity check for prot bit.
 	if ((prot & ~PTE_W) != 0) return (void *) -E_INVAL;
 
+	// Round 'len' up to the nearest page size, since mappings are
+	//  done with page granularity
+	len = ROUNDUP(len, PGSIZE);
+
 	// Attempt to find a contiguous region of memeory of size len
 	cprintf("mmap() - find free memory \n");
-	retva = sys_page_block_alloc(0, addr, len / PGSIZE, PTE_U|prot);
+	retva = sys_page_block_alloc(0, addr, len, PTE_U|prot);
 	if (retva < 0) {
 		cprintf("mmap() - failure from sys_page_block_alloc: %d \n", retva);
 		return (void *)retva;
 	}
 	cprintf("mmap() - start memory address: %p, UTOP: %p \n", (uint32_t)retva, UTOP); // va>UTOP??
 
-	if ((flags & MAP_SHARED) != 0) {
-		// Install handler for MAP_SHARE
-		sys_env_set_region_handler(0, mmap_shared_handler, (void *) retva,
-				       (void *) retva + len/PGSIZE);
-	} else {
-		// Install handler for MAP_PRIVATE
-		sys_env_set_region_handler(0, mmap_private_handler, (void *) retva,
-				       (void *) retva + len/PGSIZE);
-	}
+	// Allocates a page to hold mmaped_region structs if one hasn't
+	//  been allocated yet.
+	if((!(uvpd[PDX(MMAPTABLE)]&PTE_P) || !(uvpt[PGNUM(MMAPTABLE)]&PTE_P)) &&
+	   (r = sys_page_alloc(0, (void *) MMAPTABLE, PTE_P|PTE_W|PTE_U)) < 0)
+		panic("sys_page_alloc: %e", r);
 
-	// TODO: Allocate page(s) for mmap metadata if necessary.
-	// Allocates a page to hold mmaped_region structs
-	//if ((r = sys_page_alloc(0, (void *) MMAPTABLE, PTE_P|PTE_W|PTE_U)) < 0)
-	//	panic("sys_page_alloc: %e", r);
-
-	
 	// Finds the smallest i that isn't already used by a mmap_metadata
 	// struct, fills in its values, and returns retva. Returns negative on
-	// failure.
+	// failure.  Unallocated meta-data slots have mmmd_endaddr = NULL
 	for (i = 0; i < MAXMMAP; i++) {
-		// TODO: Check if the struct is truly free.
-		// TODO: Create mmap_metadata struct and assign values.
-		return (void *) retva;
+		if((mmmd = INDEX2MMAP(i)).mmd_endaddr == NULL) {
+			mmmd.mmmd_fileid = fd_num;
+			mmmd.mmmd_fileoffset = off;
+			mmmd.mmmd_startaddr = retva;
+			mmmd.mmmd_endaddr = retva+len;
+		}
 	}
-	
-	// Couldn't map correctly.
-	return (void *) -E_INVAL;
 
+	// If we didn't find a slot, we've reached the limit on mmap regions
+	if(i == MAXMMAP)
+		return (void *) -E_NO_MEM;
 
+	// Install the correct handler for the type of mapping created
+	if ((flags & MAP_SHARED) != 0)
+		sys_env_set_region_handler(0, mmap_shared_handler, (void *) retva,
+					   (void *)(retva + len));
+	else
+		sys_env_set_region_handler(0, mmap_private_handler, (void *) retva,
+					   (void *)(retva + len));
+
+	return (void *) retva;
 }
 
 int
