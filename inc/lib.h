@@ -145,7 +145,7 @@ void	wait(envid_t env);
 #define O_MKDIR		0x0800		/* create directory, not regular file */
 
 /* MMap flags */
-#define	MMAPTABLE	0xC0000000	/* Bottom of the mmap metadata table. */
+#define	MMAPTABLE	0xCFFFF000	/* Bottom of the mmap metadata table. */
 #define MAP_PRIVATE	0x0000		/* If set, changes are not written to disk. */
 #define MAP_SHARED	0x0001	        /* Updates are visiable and carried through */
 
