@@ -110,6 +110,7 @@ int     request_block(int fileid, off_t offset, void * dstva, uint32_t perm);
 // mmap.c
 void *	mmap(void *addr, size_t len, int prot, int flags, int fd_num, off_t off);
 int	munmap(void *addr, size_t len);
+int     msync(void *addr, size_t length, int flags);
 static void	mmap_shared_handler(struct UTrapframe *utf);
 static void	mmap_private_handler(struct UTrapframe *utf);
 

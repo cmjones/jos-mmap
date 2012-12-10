@@ -20,6 +20,8 @@ umain(int argc, char **argv)
 
 	int r_munmap;
 
+	char *string = "MMAP IS COOL ";
+
 	// First, open file 'lorem' and get the file id.
 	if ((r_open = open("/lorem", O_RDONLY)) < 0)
 		panic("mmap(): opening file failed, ERROR CODE: %d \n", r_open);
@@ -30,41 +32,42 @@ umain(int argc, char **argv)
 	length = PGSIZE;
 	mmaped_addr = mmap(NULL, length, PTE_W, MAP_SHARED, r_open, (off_t) 0);
 	content = (char *) mmaped_addr;
-	cprintf("=> Read from mmapped region:\n\t%30s\n", content);
+	cprintf("=> Read from mmapped region:\n\t%.30s\n", content);
 
-	cprintf("=> Now make some changes to file.\n");
-	for (change_i = 0; change_i < length; change_i += 4) {
-		content[change_i] = 'J';
+	cprintf("=> Make some changes to file.\n");
+	for (change_i = 0; change_i < 8; change_i += 1) {
+		content[change_i] = string[change_i];
 	}
 
-	cprintf("=> Now read from the mmaped region.\n");
-	cprintf("\t%30s\n", content);
-
+	cprintf("=> Read from the mmaped region.\n");
+	cprintf("\t%.30s\n", content);
 	cprintf("=> Now read directly from the FS.\n");
 	cprintf("=> Correct behavior shows same content b/c of SHARED\n");
 	read(r_open, fread_buf, length);
-	cprintf("\t%30s\n", (char *) fread_buf);
+	cprintf("\t%.30s\n", (char *) fread_buf);
 
-	cprintf("=> Now close the file descriptor.\n");
+	cprintf("=> Close the file descriptor.\n");
 	close(r_open);
 
 	cprintf("=> Change the files some more.\n");
-	for (change_i = 0; change_i < length; change_i += 5) {
-		content[change_i] = 'O';
+	for (change_i = 8; change_i < 13; change_i += 1) {
+		content[change_i] = string[change_i];
 	}
 	cprintf("=> Read the new changes from the mmaped region.\n");
-	cprintf("\t%30s\n", content);
+	cprintf("\t%.30s\n", content);
 
 	cprintf("=> Open the file and read from disk. Changes should be reflected\n");
 	if ((r_open = open("/lorem", O_RDONLY)) < 0)
 		panic("mmap(): opening file failed, ERROR CODE: %d \n", r_open);
 	fileid = fgetid(r_open);
 	read(r_open, fread_buf, length);
-	cprintf("\t%30s\n", (char *) fread_buf);
+	cprintf("\t%.30s\n", (char *) fread_buf);
 
-	cprintf("=> Now unmap the region.\n");
+	msync(content, length, 0);
+
+	cprintf("=> Unmap the region.\n");
 	r_munmap = munmap(mmaped_addr, length);
 	cprintf("=> munmap() - return %d \n", r_munmap);
-	cprintf("=> Now try to read again (PGFLT expected).\n");
-	cprintf("=> Read from mmapped region after munmap:\n\t%30s\n", content);
+	cprintf("=> Try to read again (PGFLT expected).\n");
+	cprintf("=> Read from mmapped region after munmap:\n\t%.30s\n", content);
 }
