@@ -32,16 +32,33 @@ umain(int argc, char **argv)
 	content = (char *) mmaped_addr;
 	cprintf("=> Read from mmapped region:\n\t%30s\n", content);
 
-	cprintf("=> Now make some changes to file...\n");
+	cprintf("=> Now make some changes to file.\n");
 	for (change_i = 0; change_i < length; change_i += 4) {
 		content[change_i] = 'J';
 	}
 
-	cprintf("=> Now read from the mmaped region...\n");
+	cprintf("=> Now read from the mmaped region.\n");
 	cprintf("\t%30s\n", content);
 
-	cprintf("=> Now read directly from the FS...\n");
+	cprintf("=> Now read directly from the FS.\n");
 	cprintf("=> Correct behavior shows same content b/c of SHARED\n");
+	read(r_open, fread_buf, length);
+	cprintf("\t%30s\n", (char *) fread_buf);
+
+	cprintf("=> Now close the file descriptor.\n");
+	close(r_open);
+
+	cprintf("=> Change the files some more.\n");
+	for (change_i = 0; change_i < length; change_i += 5) {
+		content[change_i] = 'O';
+	}
+	cprintf("=> Read the new changes from the mmaped region.\n");
+	cprintf("\t%30s\n", content);
+
+	cprintf("=> Open the file and read from disk. Changes should be reflected\n");
+	if ((r_open = open("/lorem", O_RDONLY)) < 0)
+		panic("mmap(): opening file failed, ERROR CODE: %d \n", r_open);
+	fileid = fgetid(r_open);
 	read(r_open, fread_buf, length);
 	cprintf("\t%30s\n", (char *) fread_buf);
 

@@ -52,4 +52,5 @@ umain(int argc, char **argv)
 	cprintf("=> munmap() - return %d \n", r_munmap);
 	cprintf("=> Now try to read again (PGFLT expected).\n");
 	cprintf("=> Read from mmapped region after munmap:\n\t%30s\n", content);
+
 }
