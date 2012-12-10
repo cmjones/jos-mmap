@@ -2,7 +2,7 @@
 #include <inc/string.h>
 #include <inc/lib.h>
 
-#define debug 0
+#define debug 1
 
 union Fsipc fsipcbuf __attribute__((aligned(PGSIZE)));
 
@@ -199,6 +199,9 @@ sync(void)
 int
 request_block(int fileid, off_t offset, void * dstva, uint32_t perm)
 {
+	if (debug)
+		cprintf("[%08x] block request: %d, %d, %p, %p\n", thisenv->env_id, fileid, offset, dstva, perm);
+
 	// set up the fsipc request
 	fsipcbuf.breq.req_fileid = fileid;
 	fsipcbuf.breq.req_offset = offset;
