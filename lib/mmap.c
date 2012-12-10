@@ -30,7 +30,7 @@ page_unmap(uint32_t start, uint32_t end)
 		sys_page_unmap(0, (void *)i);
 
 	// Remove any handlers from the unmapped region
-	sys_env_set_region_handler(0, NULL, (void *) start, (void *) end);
+	set_pgfault_region_handler(NULL, (void *) start, (void *) end);
 }
 
 // Implementation of mmap(), which maps address space to a memory object.
@@ -98,11 +98,11 @@ mmap(void *addr, size_t len, int prot, int flags, int fd, off_t off)
 
 	// Install the correct handler for the type of mapping created
 	if ((flags & MAP_SHARED) != 0)
-		sys_env_set_region_handler(0, mmap_shared_handler, (void *) retva,
+		set_pgfault_region_handler(mmap_shared_handler, (void *) retva,
 					   (void * )(retva + len));
 
 	else
-		sys_env_set_region_handler(0, mmap_private_handler, (void *) retva,
+		set_pgfault_region_handler(mmap_private_handler, (void *) retva,
 					   (void * )(retva + len));
 
 	cprintf("mmap() - finished, region starts at %08x\n", retva);

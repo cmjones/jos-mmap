@@ -14,6 +14,10 @@
 #include <kern/cpu.h>
 #include <kern/spinlock.h>
 
+
+// Assembly language pgfault entrypoint defined in kern/pfentry.S.
+extern void _pgfault_upcall(void (*handler)(struct UTrapframe *utf));
+
 /* Declare a list of handler functions for use in the IDT.
  *  handle_default can be used for an arbitrary handler
  */
@@ -319,6 +323,7 @@ void
 trap(struct Trapframe *tf)
 {
 if(tf != NULL)
+print_trapframe(tf);
 	// The environment may have set DF and some versions
 	// of GCC rely on DF being clear
 	asm volatile("cld" ::: "cc");
@@ -436,8 +441,8 @@ page_fault_handler(struct Trapframe *tf)
 		}
 	}
 
-	// If there is no appropriate region handler, use env_pgfault_upcall
-	if(handler == NULL) handler = curenv->env_pgfault_upcall;
+	// If there is no appropriate region handler, use env_pgfault_global
+	if(handler == NULL) handler = curenv->env_pgfault_global;
 
 	// Check if a user-installed handler exists
 	if(handler != NULL) {
@@ -467,8 +472,13 @@ page_fault_handler(struct Trapframe *tf)
 
 			// Now return to the user-defined handler, switching
 			//  to the newly created stack
-			tf->tf_eip = (int)handler;
-			tf->tf_esp = (int)utfp;
+			tf->tf_eip = (int)_pgfault_upcall;
+
+			// There should be one more word on the stack to store
+			//  the handler pointer to use.  This allows for multiple
+			//  handlers to be registered simultaneously.
+			tf->tf_esp = (int)utfp-4;
+			*((void **)tf->tf_esp) = handler;
 			env_run(curenv);
 		}
 	}

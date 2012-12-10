@@ -71,7 +71,7 @@ struct Env {
 	pde_t *env_pgdir;		// Kernel virtual address of page dir
 
 	// Exception handling
-	void *env_pgfault_upcall;	// Page fault upcall entry point
+	void *env_pgfault_global;	// Page fault upcall entry point
 
 	//PROJECT:  List of handlers associated with specific addresses
 	struct EnvRegionHandler env_pgfault_handlers[MAXHANDLERS];

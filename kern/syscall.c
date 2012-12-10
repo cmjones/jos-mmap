@@ -162,16 +162,15 @@ sys_env_set_trapframe(envid_t envid, struct Trapframe *tf)
 	return 0;
 }
 
-// Set the page fault upcall for 'envid' by modifying the corresponding struct
-// Env's 'env_pgfault_upcall' field.  When 'envid' causes a page fault, the
-// kernel will push a fault record onto the exception stack, then branch to
-// 'func'.
+// Set the global page fault handler for 'envid' by modifying the corresponding
+// struct Env's 'env_pgfault_global' field.  When 'envid' causes a page fault, the
+// kernel will push a fault record onto the exception stack, then branch to 'func'.
 //
 // Returns 0 on success, < 0 on error.  Errors are:
 //	-E_BAD_ENV if environment envid doesn't currently exist,
 //		or the caller doesn't have permission to change envid.
 static int
-sys_env_set_pgfault_upcall(envid_t envid, void *func)
+sys_env_set_global_pgfault(envid_t envid, void *func)
 {
 	struct Env *e;
 
@@ -179,13 +178,13 @@ sys_env_set_pgfault_upcall(envid_t envid, void *func)
 	if(envid2env(envid, &e, 1) != 0) return -E_BAD_ENV;
 
 	// Now set the handler
-	e->env_pgfault_upcall = func;
+	e->env_pgfault_global = func;
 	return 0;
 }
 
 // Sets a page fault handler for a specific range of addresses for 'envid.'  If
 //  a page fault occurs within the given range, the installed handler will be
-//  called.  Otherwise, the Env's 'env_pgfault_upcall' will be called if it exists.
+//  called.  Otherwise, the Env's 'env_pgfault_global' will be called if it exists.
 //
 // If func is NULL, any page fault handlers in the passed region will be removed.
 //
@@ -198,7 +197,7 @@ sys_env_set_pgfault_upcall(envid_t envid, void *func)
 //		range includes part of the range of a previously
 //		installed handler.
 static int
-sys_env_set_region_handler(envid_t envid, void *func, uint32_t minaddr, uint32_t maxaddr)
+sys_env_set_region_pgfault(envid_t envid, void *func, uint32_t minaddr, uint32_t maxaddr)
 {
 	struct Env *e;
 	int i, j;
@@ -703,11 +702,11 @@ syscall(uint32_t syscallno, uint32_t a1, uint32_t a2, uint32_t a3, uint32_t a4, 
 		user_mem_assert(curenv, (void *)a2, sizeof(struct Trapframe), PTE_U);
 		retval = sys_env_set_trapframe(a1, (void *)a2);
 		break;
-	case SYS_env_set_pgfault_upcall:
-		retval = sys_env_set_pgfault_upcall(a1, (void *)a2);
+	case SYS_env_set_global_pgfault:
+		retval = sys_env_set_global_pgfault(a1, (void *)a2);
 		break;
-	case SYS_env_set_region_handler:
-		retval = sys_env_set_region_handler(a1, (void *)a2, a3, a4);
+	case SYS_env_set_region_pgfault:
+		retval = sys_env_set_region_pgfault(a1, (void *)a2, a3, a4);
 		break;
 	case SYS_ipc_try_send:
 		retval = sys_ipc_try_send(a1, a2, (void *)a3, a4);

@@ -2,11 +2,9 @@
 
 #include <inc/lib.h>
 
-void _pgfault_upcall();
-
 void
 umain(int argc, char **argv)
 {
-	sys_env_set_pgfault_upcall(0, (void*) _pgfault_upcall);
+	sys_env_set_global_pgfault(0, (void*) thisenv->env_pgfault_global);
 	*(int*)0 = 0;
 }
