@@ -60,7 +60,7 @@ mmap(void *addr, size_t len, int prot, int flags, int fd, off_t off)
 
 	// Attempt to find a contiguous region of memeory of size len
 	cprintf("mmap() - find free memory \n");
-	retva = sys_page_block_alloc(0, addr, len, PTE_U|prot);
+	retva = sys_page_block_alloc(0, addr, len/PGSIZE, PTE_U|prot);
 	if (retva < 0) {
 		cprintf("mmap() - failure from sys_page_block_alloc: %d \n", retva);
 		return (void *)retva;
@@ -86,13 +86,15 @@ mmap(void *addr, size_t len, int prot, int flags, int fd, off_t off)
 				((flags & MAP_PRIVATE) ? PTE_COW : PTE_SHARE);
 			mmmd->mmmd_startaddr = retva;
 			mmmd->mmmd_endaddr = retva+len;
-			
+			break;
 		}
 	}
 
 	// If we didn't find a slot, we've reached the limit on mmap regions
 	if(i == MAXMMAP)
 		return (void *) -E_NO_MEM;
+
+	cprintf("mmap() - found slot %d for meta-data\n", i);
 
 	// Install the correct handler for the type of mapping created
 	if ((flags & MAP_SHARED) != 0)
@@ -103,6 +105,7 @@ mmap(void *addr, size_t len, int prot, int flags, int fd, off_t off)
 		sys_env_set_region_handler(0, mmap_private_handler, (void *) retva,
 					   (void * )(retva + len));
 
+	cprintf("mmap() - finished, region starts at %08x\n", retva);
 	return (void *) retva;
 }
 
@@ -189,7 +192,7 @@ mmap_shared_handler(struct UTrapframe *utf)
 	struct mmap_metadata *mmmd;
 	uint32_t err, i;
 	void *addr;
-	
+
 	addr = (void *) utf->utf_fault_va;
 	err = utf->utf_err;
 
@@ -220,10 +223,11 @@ mmap_private_handler(struct UTrapframe *utf)
 	struct mmap_metadata *mmmd;
 	uint32_t err, i;
 	void *addr;
-	
+
 	addr = (void *) utf->utf_fault_va;
 	err = utf->utf_err;
 
+cprintf("Starting page fault handler for private mappings, fault address %p\n", addr);
 	// Iterates through the mmap handlers, setting mmmd to the mmap
 	// metdata struct that contains the mapped region.
 	for (i = 0; i < MAXMMAP; i++) {
@@ -233,6 +237,7 @@ mmap_private_handler(struct UTrapframe *utf)
 			break;
 	}
 
+cprintf("Found metadata at index %d\n", i);
 	// Page aligning addr for filesystem request.
 	addr = ROUNDDOWN(addr, PGSIZE);
 

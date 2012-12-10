@@ -21,7 +21,7 @@ umain(int argc, char **argv)
 	if ((r_open = open("/lorem", O_RDONLY)) < 0)
 		panic("mmap(): opening file failed, ERROR CODE: %d \n", r_open);
 	fileid = fgetid(r_open);
-	
+
 	// Start testing.
 	switch (TESTNUM) {
 	case 0:
