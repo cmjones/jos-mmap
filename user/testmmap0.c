@@ -22,7 +22,7 @@ umain(int argc, char **argv)
 		panic("mmap(): opening file failed, ERROR CODE: %d \n", r_open);
 	fileid = fgetid(r_open);
 
-	cprintf("Test directly mmaping a file via fs ipc request.\n");
+	cprintf("\nTest directly mmaping a file via fs ipc request.\n");
 	content = (char *)0x20005000;
 	uint32_t perm = PTE_U | PTE_W | PTE_SHARE;
 	int ret_rb = request_block(fileid, 0, content, perm);

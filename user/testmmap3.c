@@ -23,7 +23,7 @@ umain(int argc, char **argv)
 	fileid = fgetid(r_open);
 
 	// Start testing.
-	cprintf("Test mmaping file as PRIVATE, read from it, and print out the content.\n");
+	cprintf("\nTest mmaping file as PRIVATE, read from it, and print out the content.\n");
 	length = PGSIZE;
 	mmaped_addr = mmap(NULL, length, 0, MAP_PRIVATE, r_open, (off_t) 0);
 	content = (char *) mmaped_addr;

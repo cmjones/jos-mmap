@@ -25,7 +25,7 @@ umain(int argc, char **argv)
 	fileid = fgetid(r_open);
 
 	// Start testing.
-	cprintf("Test mmaping file as SHARED, print out the content. Unmap the region. try read again.\n");
+	cprintf("\nTest mmaping file as SHARED, print out the content. Unmap the region. try read again.\n");
 	length = PGSIZE;
 	mmaped_addr = mmap(NULL, length, 0, MAP_SHARED, r_open, (off_t) 0);
 	content = (char *) mmaped_addr;
