@@ -219,11 +219,11 @@ request_block(int fileid, off_t offset, void * dstva, uint32_t perm)
 //
 // Returns -E_INVAL if length and offset aren't sane
 int
-flush(int fdnum, size_t length, off_t offset, bool force)
+flush(int fileid, size_t length, off_t offset, bool force)
 {
 	if(length < 0) return -E_INVAL;
 
-	fsipcbuf.flush.req_fileid = fgetid(fdnum);
+	fsipcbuf.flush.req_fileid = fileid;
 	fsipcbuf.flush.req_length = length;
 	fsipcbuf.flush.req_offset = offset;
 	fsipcbuf.flush.req_force = force;

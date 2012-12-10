@@ -204,6 +204,46 @@ munmap(void *addr, size_t len)
 	return 0;
 }
 
+// Sync the mmapped regions within the given length and offset bounds
+// Currently, flags are ignored, and the function behaves as if the
+// the MS_SYNC flag has been passed.
+int
+msync(void *addr, size_t length, int flags)
+{
+	struct mmap_metadata *mmmd;
+	uint32_t minaddr, maxaddr;
+	int i, j;
+
+	// Calculate the start and end addresses
+	minaddr = (uint32_t)ROUNDDOWN(addr, PGSIZE);
+	maxaddr = (uint32_t)ROUNDUP(addr+length, PGSIZE);
+
+	for (j = minaddr; j < maxaddr; j += PGSIZE) {
+		for (i = 0; i < MAXMMAP; i++) {
+			// Check if this slot has been allocated
+			if ((mmmd = INDEX2MMAP(i))->mmmd_endaddr == 0)
+				continue;
+
+			// Check to see if the page is in this address. If so,
+			//  sync the associated block.
+			if (j >= mmmd->mmmd_startaddr && j < mmmd->mmmd_endaddr) {
+				flush(mmmd->mmmd_fileid,
+				      1,
+				      mmmd->mmmd_fileoffset+j-mmmd->mmmd_startaddr,
+				      true);
+				break;
+			}
+		}
+
+		// If i == MAXMAP, no region was found that contains the page,
+		//  so we should return an error.
+		if(i == MAXMMAP) return -E_NO_MEM;
+	}
+
+	// Success!
+	return 0;
+}
+
 // Handler for pages mmapped with the MAP_SHARED flag.
 static void
 mmap_shared_handler(struct UTrapframe *utf)

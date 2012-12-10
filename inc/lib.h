@@ -101,7 +101,7 @@ int	stat(const char *path, struct Stat *statbuf);
 int	fgetid(int fd);
 
 // file.c
-int	flush(int fd, size_t len, off_t offset, bool flush);
+int	flush(int fileid, size_t len, off_t offset, bool flush);
 int	open(const char *path, int mode);
 int	remove(const char *path);
 int	sync(void);
