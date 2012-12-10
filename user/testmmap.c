@@ -1,6 +1,6 @@
 #include <inc/lib.h>
 
-#define TESTNUM 0
+#define TESTNUM 4
 #define DEBUG 1
 
 void
@@ -15,7 +15,7 @@ umain(int argc, char **argv)
 	void *mmaped_addr;
 
 	char *content;
-	void *fread_buf;
+	char fread_buf[512];
 
 	cprintf("\nRunning testmmap...\n");
 	// First, open file 'lorem' and get the file id.
@@ -45,13 +45,13 @@ umain(int argc, char **argv)
 	case 2:
 		cprintf("Test mmaping file as SHARED, read from it, print out the content.\n \
 		Change some content, read the file again and check the content.\n");
-		length = PGSIZE;
-		mmaped_addr = mmap(NULL, length, 0, MAP_SHARED, r_open, (off_t) 0);
+		length = 500;
+		mmaped_addr = mmap(NULL, length, PTE_W, MAP_SHARED, r_open, (off_t) 0);
 		content = (char *) mmaped_addr;
 		cprintf("=> Read from file:\n\t%30s\n", content);
 
 		cprintf("=> Now make some changes to file...\n");
-		content = "LOREM ON CRACK!";
+		content[0] = '7';
 
 		cprintf("=> Now read from the mmaped region...\n");
 		cprintf("\t%30s\n", content);
@@ -64,7 +64,7 @@ umain(int argc, char **argv)
 	case 3:
 		cprintf("Test mmaping file as PRIVATE, read from it, and print out the content.\n");
 		length = PGSIZE;
-		mmaped_addr = mmap(NULL, length, PTE_W, MAP_PRIVATE, r_open, (off_t) 0);
+		mmaped_addr = mmap(NULL, length, 0, MAP_PRIVATE, r_open, (off_t) 0);
 		cprintf("Test: finished mmap, got address %p\n", mmaped_addr);
 		content = (char *) mmaped_addr;
 		cprintf("Read from file:\n\t%30s\n", content);
@@ -73,14 +73,14 @@ umain(int argc, char **argv)
 		cprintf("Test mmaping file as PRIVATE, read from it, print out the content.\n \
 		Change some content, read the file again and check the content.\n");
 		cprintf("Test mmaping file as PRIVATE, read from it, and print out the content.\n");
-		length = PGSIZE;
+		length = 500;
 		mmaped_addr = mmap(NULL, length, PTE_W, MAP_PRIVATE, r_open, (off_t) 0);
 		cprintf("Test: finished mmap, got address %p\n", mmaped_addr);
 		content = (char *) mmaped_addr;
 		cprintf("=> Read from file:\n\t%30s\n", content);
 
 		cprintf("=> Now make some changes to file...\n");
-		content = "LOREM ON CRACK!";
+		content[0] = '7';
 
 		cprintf("=> Now read from the mmaped region...\n");
 		cprintf("\t%30s\n", content);
@@ -88,7 +88,7 @@ umain(int argc, char **argv)
 		cprintf("=> Now read directly from the FS...\n");
 		cprintf("=> Correct behavior shows different contents b/c of COW\n");
 		read(r_open, fread_buf, length);
-		cprintf((char *) fread_buf);		
+		cprintf("\t%30s\n", (char *) fread_buf);
 		break;
 	default:
 		cprintf("No valid test num was specified. Do nothing. \n");

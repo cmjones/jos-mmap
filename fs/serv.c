@@ -275,11 +275,11 @@ serve_block_req(envid_t envid, struct Fsreq_breq *req,
 		// permissions should be read-only.  If they do, the permissions
 		// should be PTE_COW.
 		if(*perm_store&PTE_W)
-			// Unset PTE_COW
-			*perm_store &= ~PTE_COW;
-		else
 			// Unset PTE_W
 			*perm_store &= ~PTE_W;
+		else
+			// Unset PTE_COW
+			*perm_store &= ~PTE_COW;
 	}
 
 	if (debug) {

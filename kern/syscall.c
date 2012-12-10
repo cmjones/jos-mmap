@@ -162,6 +162,27 @@ sys_env_set_trapframe(envid_t envid, struct Trapframe *tf)
 	return 0;
 }
 
+// Set the page fault upcall for the given environment.  This upcall is run in user
+//  mode, and passed a handler function as an argument.  The idea is to allow this
+//  function to return directly to the faulting instruction as opposed to returning
+//  through the kernel.
+//
+// Returns 0 on success, < 0 on error.  Errors are:
+//	-E_BAD_ENV if environment envid doesn't currently exist,
+//		or the caller doesn't have permission to change envid.
+static int
+sys_env_set_pgfault_upcall(envid_t envid, void *func)
+{
+	struct Env *e;
+
+	// Grab the environment
+	if(envid2env(envid, &e, 1) != 0) return -E_BAD_ENV;
+
+	// Now set the handler
+	e->env_pgfault_upcall = func;
+	return 0;
+}
+
 // Set the global page fault handler for 'envid' by modifying the corresponding
 // struct Env's 'env_pgfault_global' field.  When 'envid' causes a page fault, the
 // kernel will push a fault record onto the exception stack, then branch to 'func'.
@@ -701,6 +722,9 @@ syscall(uint32_t syscallno, uint32_t a1, uint32_t a2, uint32_t a3, uint32_t a4, 
 		// Double-check the Trapframe pointer
 		user_mem_assert(curenv, (void *)a2, sizeof(struct Trapframe), PTE_U);
 		retval = sys_env_set_trapframe(a1, (void *)a2);
+		break;
+	case SYS_env_set_pgfault_upcall:
+		retval = sys_env_set_pgfault_upcall(a1, (void *)a2);
 		break;
 	case SYS_env_set_global_pgfault:
 		retval = sys_env_set_global_pgfault(a1, (void *)a2);

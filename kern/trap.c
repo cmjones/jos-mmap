@@ -15,8 +15,6 @@
 #include <kern/spinlock.h>
 
 
-// Assembly language pgfault entrypoint defined in kern/pfentry.S.
-extern void _pgfault_upcall(void (*handler)(struct UTrapframe *utf));
 
 /* Declare a list of handler functions for use in the IDT.
  *  handle_default can be used for an arbitrary handler
@@ -322,8 +320,6 @@ trap_dispatch(struct Trapframe *tf)
 void
 trap(struct Trapframe *tf)
 {
-if(tf != NULL)
-print_trapframe(tf);
 	// The environment may have set DF and some versions
 	// of GCC rely on DF being clear
 	asm volatile("cld" ::: "cc");
@@ -472,7 +468,7 @@ page_fault_handler(struct Trapframe *tf)
 
 			// Now return to the user-defined handler, switching
 			//  to the newly created stack
-			tf->tf_eip = (int)_pgfault_upcall;
+			tf->tf_eip = (int)curenv->env_pgfault_upcall;
 
 			// There should be one more word on the stack to store
 			//  the handler pointer to use.  This allows for multiple
