@@ -108,6 +108,7 @@ fork(void)
 {
 	envid_t child;
 	unsigned pagenum;
+	int i;
 
 	// First set up the page fault handler
 	set_pgfault_handler(pgfault);
@@ -144,10 +145,17 @@ fork(void)
 			duppage(child, pagenum);
 	}
 
-	// Set the child's pagefault handler by copying the current one over
-	extern void _pgfault_upcall(void);
-	if(sys_env_set_pgfault_upcall(child, _pgfault_upcall) != 0)
+	// Get the child environment struct and set its pagefault handlers
+	//  by copying the ones from the parent.
+	if(sys_env_set_global_pgfault(child, thisenv->env_pgfault_global) != 0)
 		panic("unable to set child page fault handler");
+	for(i = 0; i < MAXHANDLERS; i++)
+		if(sys_env_set_region_pgfault(child,
+					      thisenv->env_pgfault_handlers[i].erh_handler,
+					      (void *)thisenv->env_pgfault_handlers[i].erh_minaddr,
+					      (void *)thisenv->env_pgfault_handlers[i].erh_maxaddr) != 0);
+			panic("unable to set child page fault handler");
+
 
 	// Finally, mark the child as runnable.
 	if(sys_env_set_status(child, ENV_RUNNABLE) != 0)
