@@ -56,7 +56,7 @@ int	sys_page_alloc(envid_t env, void *pg, int perm);
 int	sys_page_map(envid_t src_env, void *src_pg,
 		     envid_t dst_env, void *dst_pg, int perm);
 int	sys_page_unmap(envid_t env, void *pg);
-int	sys_page_block_alloc(envid_t envid, void *va, int pgnum, int perm);
+int	sys_page_reserve(envid_t envid, void *va, int pgnum, int perm);
 int	sys_ipc_try_send(envid_t to_env, uint32_t value, void *pg, int perm);
 int	sys_ipc_recv(envid_t from_env, void *rcv_pg);
 

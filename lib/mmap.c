@@ -60,7 +60,7 @@ mmap(void *addr, size_t len, int prot, int flags, int fd, off_t off)
 
 	// Attempt to find a contiguous region of memeory of size len
 	cprintf("mmap() - find free memory \n");
-	retva = sys_page_block_alloc(0, addr, len/PGSIZE, PTE_U|prot);
+	retva = sys_page_reserve(0, addr, len/PGSIZE, PTE_RSV);
 	if (retva < 0) {
 		cprintf("mmap() - failure from sys_page_block_alloc: %d \n", retva);
 		return (void *)retva;
@@ -80,10 +80,10 @@ mmap(void *addr, size_t len, int prot, int flags, int fd, off_t off)
 		if((mmmd = INDEX2MMAP(i))->mmmd_endaddr == 0) {
 			mmmd->mmmd_fileid = fileid;
 			mmmd->mmmd_fileoffset = off;
-			// Adds prot flags. PTE_U for all, PTE_FOR for MAP_PRIVATE,
+			// Adds prot flags. PTE_U for all, PTE_COW for MAP_PRIVATE,
 			// and PTE_SHARE for MAP_SHARED.
 			mmmd->mmmd_perm = prot | PTE_U |
-				((flags & MAP_PRIVATE) ? PTE_COW : PTE_SHARE);
+				((flags & MAP_SHARED) ? PTE_SHARE : PTE_COW);
 			mmmd->mmmd_startaddr = retva;
 			mmmd->mmmd_endaddr = retva+len;
 			break;

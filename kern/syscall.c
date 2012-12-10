@@ -429,16 +429,15 @@ sys_page_unmap(envid_t envid, void *va)
 	return 0;
 }
 
-// Allocate a block of 'pgnum' consecutive, free pages of memory and map it 
-// at 'va' with permission 'perm' in the address space of 'envid'.
-// The page's contents are set to 0.
+// Reserves a contiguous block of 'pgnum' free pages of address space starting from
+//  the page containing 'va'.  No physical memory is allocated; rather, each page
+//  table entry is marked with 'perm', which must not have PTE_P set.
 //
-// The function starts scanning for the block of pages starting at 'va' (if provided),
-// If durng scanning, a page is already mapped somewhere in the region, 
-// the function skips to the next free page and restart scanning.
+// The function allocates address space as best it can, so if there is not enough
+//  free space at 'va,' it will scan forward through memory until a suitable space
+//  is found.  Other reserved pages will be counted as taken.
 //
-// perm -- PTE_U | PTE_P must be set, PTE_AVAIL | PTE_W may or may not be set,
-//         but no other bits may be set.  See PTE_SYSCALL in inc/mmu.h.
+// perm -- PTE_P must not be set.  Any other data in the other 31 bits are fine.
 //
 // Return va pointer to the first available page on success, < 0 on error.  Errors are:
 //	-E_BAD_ENV if environment envid doesn't currently exist,
@@ -447,18 +446,17 @@ sys_page_unmap(envid_t envid, void *va)
 //	-E_INVAL if perm is inappropriate (see above).
 //	-E_NO_MEM if there's no memory to allocate the new block of pages.
 static int
-sys_page_block_alloc(envid_t envid, void *va, int pgnum, int perm)
+sys_page_reserve(envid_t envid, void *va, int pgnum, int perm)
 {
 	void *tmpva;
 	void *retva;
 	int counter;
 	struct Env *e;
 	struct PageInfo *pi;
+	pte_t *pte;
 
-	// Sanity check the permissions bits: PTE_P is automatically
-	//  set, so that bit won't be necessary to provide unless
-	//  a test case fails. ;)
-	if((perm|PTE_U) == 0 || (perm&(!(PTE_U|PTE_W|PTE_AVAIL))) != 0) return -E_INVAL;
+	// Check that perm does not have PTE_P set
+	if(perm&PTE_P) return -E_INVAL;
 
 	// Check that the environment id is correct
 	if(envid2env(envid, &e, 1) != 0) return -E_BAD_ENV;
@@ -470,7 +468,7 @@ sys_page_block_alloc(envid_t envid, void *va, int pgnum, int perm)
 			return -E_INVAL;
 		}
 		tmpva = ROUNDDOWN(va, PGSIZE);
-	} else { 
+	} else {
 		// If va is not provided, give an initial value
 		// tmpva = (void *) page2kva(get_free_page()); // TODO: check correctness
 		tmpva = (void *) UTEXT;
@@ -479,7 +477,7 @@ sys_page_block_alloc(envid_t envid, void *va, int pgnum, int perm)
 	// Scan the memory for free pages
 	counter = 0;
 	cprintf("Scanning memory for %d free page(s)...\n", pgnum);
-	while (counter < pgnum) { 
+	while (counter < pgnum) {
 		// cprintf("tmpva: %p \t counter: %d\n", (uint32_t) tmpva, counter);
 		// If 'tmpva' is out of bound, fail
 		if((uint32_t)tmpva >= UTOP) {
@@ -488,7 +486,7 @@ sys_page_block_alloc(envid_t envid, void *va, int pgnum, int perm)
 		}
 
 		// Test free pages
-		if(pgdir_walk(e->env_pgdir, tmpva, 0) == NULL) {
+		if((pte = pgdir_walk(e->env_pgdir, tmpva, 0)) == NULL || *pte == 0) {
 			counter++;
 		} else {
 			counter = 0;
@@ -496,19 +494,13 @@ sys_page_block_alloc(envid_t envid, void *va, int pgnum, int perm)
 		tmpva += PGSIZE;
 	}
 
-	// If reached here, proper-sized block of free pages is found. 
-	// Now allocate.
+	// If reached here, proper-sized block of free pages is found.
+	// Now reserve.
 	tmpva -= pgnum * PGSIZE; // back to the start of the block
 	retva = tmpva;
 	for (counter = 0; counter < pgnum; counter++, tmpva += PGSIZE) {
-		if((pi = page_alloc(ALLOC_ZERO)) != NULL) {
-			if(page_insert(e->env_pgdir, pi, tmpva, perm) != 0) {
-				page_free(pi);
-				return -E_NO_MEM;
-			}
-		} else {
-			return -E_NO_MEM;
-		}
+		pte = pgdir_walk(e->env_pgdir, tmpva, 1);
+		*pte = perm;
 	}
 
 	// Success on all pages, return the start of the block
@@ -703,8 +695,8 @@ syscall(uint32_t syscallno, uint32_t a1, uint32_t a2, uint32_t a3, uint32_t a4, 
 	case SYS_page_unmap:
 		retval = sys_page_unmap(a1, (void *)a2);
 		break;
-	case SYS_page_block_alloc:
-		retval = sys_page_block_alloc(a1, (void *)a2, a3, a4);
+	case SYS_page_reserve:
+		retval = sys_page_reserve(a1, (void *)a2, a3, a4);
 		break;
 	case SYS_env_set_trapframe:
 		// Double-check the Trapframe pointer

@@ -38,9 +38,9 @@ umain(int argc, char **argv)
 	case 1:
 		cprintf("Test mmaping file as SHARED, read from it, and print out the content.\n");
 		length = PGSIZE;
-		mmaped_addr = mmap(NULL, length, 0, MAP_SHARED, fileid, (off_t) 0);
+		mmaped_addr = mmap(NULL, length, 0, MAP_SHARED, r_open, (off_t) 0);
 		content = (char *) mmaped_addr;
-		cprintf(content);
+		cprintf("Read from file:\n\t%30s\n", content);
 		break;
 	case 2:
 		cprintf("Test mmaping file as SHARED, read from it, print out the content.\n \
@@ -49,9 +49,11 @@ umain(int argc, char **argv)
 	case 3:
 		cprintf("Test mmaping file as PRIVATE, read from it, and print out the content.\n");
 		length = PGSIZE;
-		mmaped_addr = mmap(NULL, length, PTE_W, MAP_PRIVATE, fileid, (off_t) 0);
+		mmaped_addr = mmap(NULL, length, PTE_W, MAP_PRIVATE, r_open, (off_t) 0);
+		cprintf("Test: finished mmap, got address %p\n", mmaped_addr);
 		content = (char *) mmaped_addr;
-		cprintf(content);
+		cprintf("Read from file:\n\t%30s\n", content);
+		cprintf("-- DONE\n");
 		break;
 	case 4:
 		cprintf("Test mmaping file as PRIVATE, read from it, print out the content.\n \
