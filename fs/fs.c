@@ -73,7 +73,7 @@ alloc_block(void)
 			bitmap[i] &= bitmap[i]-1;
 
 			// Flush the change in the bitmap to disk
-			flush_block(&bitmap[i]);
+			flush_block(&bitmap[i], false);
 
 			// Finally, return the block number that
 			// was allocated
@@ -333,7 +333,7 @@ file_create(const char *path, struct File **pf)
 		return r;
 	strcpy(f->f_name, name);
 	*pf = f;
-	file_flush(dir);
+	file_flush(dir, 0, 0, false);
 	return 0;
 }
 
@@ -471,36 +471,44 @@ file_set_size(struct File *f, off_t newsize)
 	if(f->f_size > newsize)
 		file_truncate_blocks(f, newsize);
 	f->f_size = newsize;
-	flush_block(f);
+	flush_block(f, false);
 	return 0;
 }
 
 // Flush the contents and metadata of file f out to disk.
-// Loop over all the blocks in file.
+// Loop over all the blocks in range, or over the whole file
+// if length is 0.
 // Translate the file block number into a disk block number
 // and then check whether that disk block is dirty. If so,
 // write it out.
+// If 'force' is true, skip checking the dirty bit
 void
-file_flush(struct File *f)
+file_flush(struct File *f, size_t length, off_t offset, bool force)
 {
-	int r, i, blks;
+	int r, i, min, max;
 	uint32_t *blk;
 
 	// Flush the file meta-data block and the indirect block
-	flush_block(f);
+	flush_block(f, false);
 	if(f->f_indirect != 0)
-		flush_block(diskaddr(f->f_indirect));
+		flush_block(diskaddr(f->f_indirect), force);
 
 	// Figure out the number of blocks in the file,
 	//  then loop through them.
-	blks = ROUNDUP(f->f_size, BLKSIZE)/BLKSIZE;
-	for(i = 0; i < blks; i++) {
+	if(length <= 0) {
+		min = offset/BLKSIZE;
+		max = ROUNDUP(offset+length, BLKSIZE)/BLKSIZE;
+	} else {
+		min = 0;
+		max = ROUNDUP(f->f_size, BLKSIZE)/BLKSIZE;
+	}
+	for(i = min; i < max; i++) {
 		// Calculate the address of the file block,
 		//  then flush that address.
 		if ((r = file_block_walk(f, i, &blk, 0)) < 0 ||
 		    *blk == 0)
 			continue;
-		flush_block(diskaddr(*blk));
+		flush_block(diskaddr(*blk), force);
 	}
 }
 
@@ -517,7 +525,7 @@ file_remove(const char *path)
 	file_truncate_blocks(f, 0);
 	f->f_name[0] = '\0';
 	f->f_size = 0;
-	flush_block(f);
+	flush_block(f, false);
 
 	return 0;
 }
@@ -528,5 +536,5 @@ fs_sync(void)
 {
 	int i;
 	for (i = 1; i < super->s_nblocks; i++)
-		flush_block(diskaddr(i));
+		flush_block(diskaddr(i), false);
 }

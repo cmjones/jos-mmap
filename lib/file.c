@@ -101,6 +101,9 @@ static int
 devfile_flush(struct Fd *fd)
 {
 	fsipcbuf.flush.req_fileid = fd->fd_file.id;
+	fsipcbuf.flush.req_length = 0;
+	fsipcbuf.flush.req_offset = 0;
+	fsipcbuf.flush.req_force = false;
 	return fsipc(FSREQ_FLUSH, NULL);
 }
 
@@ -210,4 +213,20 @@ request_block(int fileid, off_t offset, void * dstva, uint32_t perm)
 
 	// and send it to the file system
 	return fsipc(FSREQ_BREQ, dstva);
+}
+
+// Request a segment of a file tobe flushed to disk
+//
+// Returns -E_INVAL if length and offset aren't sane
+int
+flush(int fdnum, size_t length, off_t offset, bool force)
+{
+	if(length < 0) return -E_INVAL;
+
+	fsipcbuf.flush.req_fileid = fgetid(fdnum);
+	fsipcbuf.flush.req_length = length;
+	fsipcbuf.flush.req_offset = offset;
+	fsipcbuf.flush.req_force = force;
+
+	return fsipc(FSREQ_FLUSH, NULL);
 }

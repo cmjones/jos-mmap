@@ -416,7 +416,6 @@ serve_stat(envid_t envid, union Fsipc *ipc)
 	return 0;
 }
 
-
 // Flush all data and metadata of req->req_fileid to disk.
 int
 serve_flush(envid_t envid, union Fsipc *ipc)
@@ -428,11 +427,11 @@ serve_flush(envid_t envid, union Fsipc *ipc)
 	req = &ipc->flush;
 
 	if(debug)
-		cprintf("serve_flush %08x %08x\n", envid, req->req_fileid);
+		cprintf("serve_flush %08x %08x %08x %08x %08x\n", envid, req->req_fileid, req->req_offset, req->req_length, req->req_force);
 
 	if((r = openfile_lookup(envid, req->req_fileid, &o)) < 0)
 		return r;
-	file_flush(o->o_file);
+	file_flush(o->o_file, req->req_length, req->req_offset, req->req_force);
 	return 0;
 }
 

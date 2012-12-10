@@ -28,8 +28,10 @@ va_is_dirty(void *va)
 // Flush the block containing the given address to disk if necessary.
 // Based off of last year's solution which used va_is_mapped and
 // va_is_dirty.  If the block isn't mapped or isn't dirty, do nothing.
+//
+// If 'force' is true, don't check the dirty bit.
 void
-flush_block(void *addr)
+flush_block(void *addr, bool force)
 {
 	// Sanity-check the address
 	if((int)addr < DISKMAP || (int)addr >= DISKMAP+DISKSIZE)
@@ -40,7 +42,7 @@ flush_block(void *addr)
 
 	// If the block at address addr exists and is dirty, flush
 	// it to the disk.
-	if(va_is_mapped(addr) && va_is_dirty(addr)) {
+	if(va_is_mapped(addr) && (force || va_is_dirty(addr))) {
 		// Write the block to disk, converting addr to
 		//  a block number.
 		ide_write(((uint32_t)addr-DISKMAP)/BLKSECTS, addr, BLKSECTS);

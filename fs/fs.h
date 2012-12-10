@@ -24,7 +24,7 @@ int	ide_write(uint32_t secno, const void *src, size_t nsecs);
 void*	diskaddr(uint32_t blockno);
 bool	va_is_mapped(void *va);
 bool	va_is_dirty(void *va);
-void	flush_block(void *addr);
+void	flush_block(void *addr, bool force);
 void	read_block(void *addr);
 void	bc_init(void);
 
@@ -36,7 +36,7 @@ int	file_open(const char *path, struct File **f);
 ssize_t	file_read(struct File *f, void *buf, size_t count, off_t offset);
 int	file_write(struct File *f, const void *buf, size_t count, off_t offset);
 int	file_set_size(struct File *f, off_t newsize);
-void	file_flush(struct File *f);
+void	file_flush(struct File *f, size_t length, off_t offset, bool force);
 int	file_remove(const char *path);
 void	fs_sync(void);
 

@@ -106,6 +106,9 @@ union Fsipc {
 	} statRet;
 	struct Fsreq_flush {
 		int req_fileid;
+		off_t req_offset;
+		size_t req_length;
+		bool req_force;
 	} flush;
 	struct Fsreq_remove {
 		char req_path[MAXPATHLEN];
