@@ -2,6 +2,8 @@
 
 #include "fs.h"
 
+#define debug 0
+
 // --------------------------------------------------------------
 // Super block
 // --------------------------------------------------------------
@@ -172,14 +174,16 @@ file_get_block(struct File *f, uint32_t filebno, char **blk)
 	if ((r = file_block_walk(f, filebno, &ptr, 1)) < 0)
 		return r;
 	if (*ptr == 0) {
-cprintf("A new block is being allocated for file %8s, file block number %d\n", f->f_name, filebno);
+		if (debug)
+			cprintf("A new block is being allocated for file %8s, file block number %d\n", f->f_name, filebno);
 		// CHALLENGE: allocate new block for the file at this
 		//  location.
 		if((r = alloc_block()) < 0) return -E_NO_DISK;
 		*ptr = r;
 	}
 	*blk = diskaddr(*ptr);
-cprintf("Found block %d for file %8s at 0x%x (disk block %d)\n", filebno, f->f_name, *blk, *ptr);
+	if (debug)
+		cprintf("Found block %d for file %8s at 0x%x (disk block %d)\n", filebno, f->f_name, *blk, *ptr);
 	return 0;
 }
 
