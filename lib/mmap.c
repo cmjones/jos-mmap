@@ -59,15 +59,15 @@ mmap(void *addr, size_t len, int prot, int flags, int fd, off_t off)
 	fileid = fgetid(fd);
 
 	// Attempt to find a contiguous region of memeory of size len.
-	cprintf("mmap() - find free memory \n");
 	retva = sys_page_reserve(0, addr, len/PGSIZE, PTE_RSV);
 	if (retva < 0) {
 		cprintf("mmap() - failure from sys_page_block_alloc: "
 			"%d \n", retva);
 		return (void *)retva;
 	}
-	cprintf("mmap() - start memory address: %p, UTOP: %p \n",
-		(uint32_t)retva, UTOP);
+	if (debug)
+		cprintf("mmap() - start memory address: %p, UTOP: %p \n",
+			(uint32_t)retva, UTOP);
 
 	// Allocates a page to hold mmaped_region structs if one hasn't
 	// been allocated yet.
@@ -97,7 +97,8 @@ mmap(void *addr, size_t len, int prot, int flags, int fd, off_t off)
 	if (i == MAXMMAP)
 		return (void *) -E_NO_MEM;
 
-	cprintf("mmap() - found slot %d for meta-data\n", i);
+	if (debug)
+		cprintf("mmap() - found slot %d for meta-data\n", i);
 
 	// Install the correct handler for the type of mapping created.
 	if ((flags & MAP_SHARED) != 0)
@@ -108,7 +109,9 @@ mmap(void *addr, size_t len, int prot, int flags, int fd, off_t off)
 		set_pgfault_region_handler(mmap_private_handler, (void *) retva,
 					   (void * )(retva + len));
 
-	cprintf("mmap() - finished, region starts at %08x\n", retva);
+	if (debug)
+		cprintf("mmap() - finished, region starts at %08x\n", retva);
+	
 	return (void *) retva;
 }
 

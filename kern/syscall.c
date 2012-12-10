@@ -496,7 +496,6 @@ sys_page_reserve(envid_t envid, void *va, int pgnum, int perm)
 
 	// Scan the memory for free pages
 	counter = 0;
-	cprintf("Scanning memory for %d free page(s)...\n", pgnum);
 	while (counter < pgnum) {
 		// cprintf("tmpva: %p \t counter: %d\n", (uint32_t) tmpva, counter);
 		// If 'tmpva' is out of bound, fail

@@ -9,7 +9,7 @@
 #include "fs.h"
 
 
-#define debug 1
+#define debug 0
 
 // The file system server maintains three structures
 // for each open file.
@@ -74,7 +74,8 @@ openfile_alloc(struct OpenFile **o)
 				return r;
 			/* fall through */
 		case 1:
-			cprintf("openfile_alloc(): got to case 1\n");
+			if (debug)
+				cprintf("openfile_alloc(): got to case 1\n");
 			opentab[i].o_fileid += MAXOPEN;
 			*o = &opentab[i];
 			memset(opentab[i].o_fd, 0, PGSIZE);
@@ -91,7 +92,8 @@ openfile_lookup(envid_t envid, uint32_t fileid, struct OpenFile **po)
 	struct OpenFile *o;
 
 	o = &opentab[fileid % MAXOPEN];
-	cprintf("pageref: %d, o->o_fileid = %d, fileid = %d\n", pageref(o->o_fd), o->o_fileid, fileid);
+	if (debug)
+		cprintf("pageref: %d, o->o_fileid = %d, fileid = %d\n", pageref(o->o_fd), o->o_fileid, fileid);
 	if (pageref(o->o_fd) == 1 || o->o_fileid != fileid)
 		return -E_INVAL;
 	*po = o;
@@ -162,7 +164,6 @@ serve_open(envid_t envid, struct Fsreq_open *req,
 
 	// Fill out the Fd structure
 	o->o_fd->fd_file.id = o->o_fileid;
-	cprintf("serve_open(): open fileid %d \n", o->o_fileid);
 	o->o_fd->fd_omode = req->req_omode & O_ACCMODE;
 	o->o_fd->fd_dev_id = devfile.dev_id;
 	o->o_mode = req->req_omode;
