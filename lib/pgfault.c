@@ -6,15 +6,21 @@
 
 #include <inc/lib.h>
 
+// Assembly language pgfault entrypoint defined in lib/pfentry.S.
+extern void _pgfault_upcall(void (*handler)(struct UTrapframe *utf));
+
 // Allocat a page for the exception stack if one doesn't already exist
 static void
 allocate_exception_stack()
 {
-	if(!(uvpd[PDX(UXSTACKTOP-PGSIZE)]&PTE_P) || !(uvpt[PGNUM(UXSTACKTOP-PGSIZE)]&PTE_P))
+	if(thisenv->env_pgfault_upcall == NULL) {
 		// First time through! 0 is the id for the
 		//  current environment.
 		if(sys_page_alloc(0, (void *)(UXSTACKTOP-PGSIZE), PTE_U|PTE_W) != 0)
 			panic("could not allocate room for exception stack\n");
+
+		sys_env_set_pgfault_upcall(0, _pgfault_upcall);
+	}
 }
 
 //

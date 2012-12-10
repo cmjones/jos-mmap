@@ -14,6 +14,7 @@ enum {
 	SYS_exofork,
 	SYS_env_set_status,
 	SYS_env_set_trapframe,
+	SYS_env_set_pgfault_upcall,
 	SYS_env_set_global_pgfault,
 	SYS_env_set_region_pgfault,
 	SYS_yield,

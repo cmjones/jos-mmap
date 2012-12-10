@@ -51,7 +51,8 @@ void	sys_yield(void);
 static envid_t sys_exofork(void);
 int	sys_env_set_status(envid_t env, int status);
 int	sys_env_set_trapframe(envid_t env, struct Trapframe *tf);
-int	sys_env_set_global_pgfault(envid_t env, void *upcall);
+int	sys_env_set_pgfault_upcall(envid_t env, void *upcall);
+int	sys_env_set_global_pgfault(envid_t env, void *handler);
 int	sys_env_set_region_pgfault(envid_t env, void *func, void *minaddr, void *maxaddr);
 int	sys_page_alloc(envid_t env, void *pg, int perm);
 int	sys_page_map(envid_t src_env, void *src_pg,
@@ -83,7 +84,6 @@ envid_t	ipc_find_env(enum EnvType type);
 int32_t ipc_recv_src(envid_t from_env, envid_t *from_env_store, void *pg, int *perm_store);
 
 // fork.c
-#define	PTE_SHARE	0x400
 envid_t	fork(void);
 envid_t	sfork(void);	// Challenge!
 
@@ -134,6 +134,7 @@ int	pipeisclosed(int pipefd);
 void	wait(envid_t env);
 
 /* PTE bit definitions */
+#define	PTE_SHARE	0x400
 #define PTE_COW		0x800		/* Copy-on-write page table permissions */
 
 /* File open modes */

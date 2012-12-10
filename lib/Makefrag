@@ -11,6 +11,7 @@ LIB_SRCFILES :=		lib/console.c \
 			lib/syscall.c
 
 LIB_SRCFILES :=		$(LIB_SRCFILES) \
+			lib/pfentry.S \
 			lib/pgfault.c \
 			lib/fork.c \
 			lib/ipc.c
