@@ -13,12 +13,13 @@ umain(int argc, char **argv)
 	size_t length;
 	void *mmaped_addr;
 
+	int change_i;
+
 	char *content;
 	char fread_buf[512];
 
 	int r_munmap;
 
-	cprintf("\nRunning testmmap...\n");
 	// First, open file 'lorem' and get the file id.
 	if ((r_open = open("/lorem", O_RDONLY)) < 0)
 		panic("mmap(): opening file failed, ERROR CODE: %d \n", r_open);
@@ -34,7 +35,9 @@ umain(int argc, char **argv)
 	cprintf("=> Read from mmaped region:\n\t%30s\n", content);
 
 	cprintf("=> Now make some changes to file...\n");
-	content[0] = '7';
+	for (change_i = 0; change_i < length; change_i += 4) {
+		content[change_i] = 'J';
+	}
 
 	cprintf("=> Now read from the mmaped region...\n");
 	cprintf("\t%30s\n", content);
@@ -49,4 +52,5 @@ umain(int argc, char **argv)
 	cprintf("=> munmap() - return %d \n", r_munmap);
 	cprintf("=> Now try to read again (PGFLT expected).\n");
 	cprintf("=> Read from mmapped region after munmap:\n\t%30s\n", content);
+
 }

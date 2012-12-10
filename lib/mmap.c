@@ -290,8 +290,9 @@ mmap_private_handler(struct UTrapframe *utf)
 	addr = (void *) utf->utf_fault_va;
 	err = utf->utf_err;
 
-	cprintf("Starting page fault handler for private mappings, fault "
-		"address %p\n", addr);
+	if (debug)
+		cprintf("Starting page fault handler for private mappings, fault "
+			"address %p\n", addr);
 
 	// Iterates through the mmap handlers, setting mmmd to the mmap
 	// metdata struct that contains the mapped region.
@@ -302,7 +303,8 @@ mmap_private_handler(struct UTrapframe *utf)
 			break;
 	}
 
-	cprintf("Found metadata at index %d\n", i);
+	if (debug)
+		cprintf("Found metadata at index %d\n", i);
 
 	// Page aligning addr for filesystem request.
 	addr = ROUNDDOWN(addr, PGSIZE);
