@@ -20,7 +20,8 @@
 //	utf_regs.reg_esi
 //	utf_regs.reg_edi
 //	utf_err (error code)
-//	utf_fault_va            <-- %esp
+//	utf_fault_va
+//	pgfault_handler		<-- %esp
 //
 // If this is a recursive fault, the kernel will reserve for us a
 // blank word above the trap-time esp for scratch work when we unwind
@@ -33,8 +34,8 @@
 .globl _pgfault_upcall
 _pgfault_upcall:
 	// Call the C page fault handler.
+	popl %eax
 	pushl %esp			// function argument: pointer to UTF
-	movl _pgfault_handler, %eax
 	call *%eax
 	addl $4, %esp			// pop function argument
 
